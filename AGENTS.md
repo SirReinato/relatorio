@@ -105,6 +105,17 @@ Ao iniciar um novo projeto a partir deste `AGENTS.md`, o agente DEVE seguir estr
 
 ---
 
+### 6. Dependência Obrigatória: graphify (Sincronização Contínua com AGENTS.md)
+
+* **Instalação e Presença Obrigatória**: O projeto DEVE obrigatoriamente ter a biblioteca graphify instalada como dependência de desenvolvimento (`npm install -D graphify` ou executada via `npx graphify`).
+* **Simbiose e Complementaridade**: O `AGENTS.md` e o `graphify` agem sempre juntos: o `AGENTS.md` fornece o contexto semântico, arquitetural e as regras operacionais para as IAs, enquanto o `graphify` mapeia visualmente as relações estruturais e o grafo de dependências do código.
+* **Regra de Atualização Simultânea**: Toda e qualquer alteração estrutural no projeto (criação de rotas, páginas, componentes, services, contexts ou hooks) DEVE acionar a atualização do mapa do `graphify` no mesmo ciclo/commit em que o `AGENTS.md` for atualizado.
+* **Configuração no Git e Scripts**:
+  * Script no `package.json`: `"graphify": "npx graphify"`
+  * A pasta gerada pelo graphify (`graphify-out/`) deve constar obrigatoriamente no `.gitignore` para evitar poluição do repositório, mas ser mantida atualizada localmente para consumo das IAs.
+
+---
+
 ## 1. Visão geral
 
 > **Nota para o Agente:** Caso este projeto esteja em estágio inicial sem requisitos de negócio explicitados, mantenha esta seção como a fundação padrão genérica. Somente substitua este parágrafo pelo resumo executivo do produto quando o usuário fornecer a especificação de negócio formal.
@@ -583,6 +594,7 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 * [ ] **Auditoria de segurança e dependências verificada**: `npm audit` sem vulnerabilidades críticas se novas libs foram instaladas, e zero segredos privados em `src/` ou variáveis `VITE_`.
 * [ ] Variáveis de ambiente novas (se houver) foram documentadas em `.env.example` e na tabela da Seção 4.
 * [ ] A árvore de pastas da Seção 5 reflete com precisão os arquivos criados/modificados.
+* [ ] **Sincronização com graphify**: Mapa do graphify gerado/atualizado localmente em `graphify-out/` e pasta devidamente ignorada no `.gitignore` (conforme Regra Obrigatória 6).
 * [ ] Este arquivo `AGENTS.md` foi atualizado com todas as mudanças estruturais aplicadas.
 * [ ] A nova alteração foi registrada na tabela de **Histórico de alterações deste arquivo** abaixo.
 * [ ] Uma branch dedicada (`feature/...` ou `fix/...`) foi criada, recebeu commits claros e foi enviada ao GitHub (`git push -u origin <branch>`).
@@ -601,3 +613,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-04 | Agente IA | Adição das recomendações práticas de inicialização: **Subseção 2.1 (Expurgo obrigatório de CSS gerado pelo Vite)**, **Subseção 5.1 (Arquivos ponteiro multi-IA: `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`)** e atualização do checklist de finalização de tarefas. | 
 | 2026-11-07 | Agente IA | Adição da **Regra Obrigatória 4 (Isolamento de arquivos e relatórios EGM em `00-anything/{sequencial} - {nome} {data}/`)**, **Regra Obrigatória 5 (Inicialização estritamente literal/genérica sem inferências por nome de pasta)**, **Sufixo `Stl` obrigatório para todos os styled-components** e especificação padronizada de `theme.jsx` com 3 variantes de botões, tipografia completa e 2 padrões de gradiente. | 
 | 2026-11-07 | Antigravity AI | Inicialização completa da casca técnica genérica (Vite + React + styled-components + react-router-dom), isolamento em `00-anything/01 - setup inicial 2026-11-07/`, ponteiros multi-IA, testes Playwright validados e detecção do ambiente local. | 
+| 2026-11-07 | Antigravity AI | Adição da **Regra Obrigatória 6 (Dependência Obrigatória: graphify e Sincronização Contínua com AGENTS.md)**, adição do script `graphify` no `package.json`, inclusão do `graphify-out/` no `.gitignore` e geração do mapa do projeto. | 
