@@ -583,7 +583,7 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 
 * [ ] **Isolamento de artefatos na raiz**: Nenhum rascunho, spec, teste temporário ou relatório EGM solto na raiz do repositório (todos salvos dentro de `00-anything/{sequencial} - {nome} {data}/`).
 * [ ] **Inicialização estritamente genérica e literal**: Nenhuma inferência ou criação de telas temáticas não solicitadas (zero telas pré-concebidas baseadas no nome da pasta).
-* [ ] **Sufixo `Stl` em 100% dos styled-components**: Todos os styled-components criados ou alterados terminam com `Stl` (ex: `ContainerGeralStl`, `BotaoAcaoStl`).
+* [ ] **Sufixo `Stl` em 100% dos styled-components**: Todos os styled-components criados ou alterados terminam com `Stl` (ex: `ContainerGeralStl`, `BotaoAcaoStl`) da preferencias para nomes em pt-br.
 * [ ] **Padrão de tema configurado**: `src/themes/theme.jsx` (ou `.tsx`) contém os 3 botões padrão (`primary`, `secondary`, `outline`), tipografia (título, subtítulo, body) e 2 gradientes reutilizáveis.
 * [ ] **Inicialização do repositório limpa**: Arquivos ponteiros (`CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) criados e CSS padrão de templates Vite excluído (`App.css` e `index.css`).
 * [ ] Código livre de arquivos `.css` importados diretamente dentro de `src/` (100% styled-components).
