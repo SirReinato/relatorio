@@ -65,7 +65,7 @@ Sempre que uma nova atualização, funcionalidade ou refatoração for solicitad
 2. **Criação de Issues com Linear MCP Ativo**:
    * Se o ambiente possuir a integração do **Linear via MCP** habilitada, o agente deve **criar e registrar automaticamente essas issues** no projeto/time correspondente do Linear, associando labels, prioridades e estimativas adequadas.
 
-3. **Formato Copiável para Agentes Sem Linear MCP**:
+3. **Formato em .md para Agentes Sem Linear MCP**:
    * Em todas as respostas ou documentações de planejamento, forneça também um bloco claro com o conteúdo exato da **atividade do momento** e das etapas seguintes.
    * Esse bloco deve ser estruturado de forma que o desenvolvedor possa simplesmente **copiar e colar o texto em outro agente ou modelo de IA que não tenha o Linear MCP ativo**, e esse agente entenda perfeitamente o contexto, as restrições e o código que deve produzir sem precisar de instruções adicionais.
 
