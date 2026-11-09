@@ -121,11 +121,11 @@ Ao iniciar um novo projeto a partir deste `AGENTS.md`, o agente DEVE seguir estr
 
 ### 6. Dependência Obrigatória: graphify (Sincronização Contínua com AGENTS.md)
 
-* **Instalação e Presença Obrigatória**: O projeto DEVE obrigatoriamente ter a biblioteca graphify instalada como dependência de desenvolvimento (`npm install -D graphify` ou executada via `npx graphify`).
+* **Instalação e Presença Obrigatória**: O ambiente de desenvolvimento deve disponibilizar o CLI oficial `graphify` no PATH. O pacote npm homônimo não fornece esse executável por si só; não use `npx graphify` para gerar o grafo.
 * **Simbiose e Complementaridade**: O `AGENTS.md` e o `graphify` agem sempre juntos: o `AGENTS.md` fornece o contexto semântico, arquitetural e as regras operacionais para as IAs, enquanto o `graphify` mapeia visualmente as relações estruturais e o grafo de dependências do código.
 * **Regra de Atualização Simultânea**: Toda e qualquer alteração estrutural no projeto (criação de rotas, páginas, componentes, services, contexts ou hooks) DEVE acionar a atualização do mapa do `graphify` no mesmo ciclo/commit em que o `AGENTS.md` for atualizado.
 * **Configuração no Git e Scripts**:
-  * Script no `package.json`: `"graphify": "npx graphify"`
+  * Script no `package.json`: `"graphify": "graphify update ."`
   * A pasta gerada pelo graphify (`graphify-out/`) deve constar obrigatoriamente no `.gitignore` para evitar poluição do repositório, mas ser mantida atualizada localmente para consumo das IAs.
 
 ---
@@ -138,7 +138,7 @@ Este projeto é uma Single Page Application (SPA) moderna, reativa e componentiz
 
 * **Objetivo do projeto:** Aplicação web para criação manual ou assistida por IA, edição por seções e exportação de relatórios em PDF, DOCX e Markdown; modelos administrativos customizam o PDF.
 * **Público-alvo:** Visitantes que criam relatórios sem conta e um único administrador autenticado que gerencia modelos PDF.
-* **Status atual:** Casca SPA inicial existente. A issue SIR-68 documenta arquitetura de protótipo; API, persistência de produto, auth, IA e exportadores ainda não foram implementados.
+* **Status atual:** SPA inicial e API de protótipo implementadas. API, auth e exportadores formam uma base local; provedor real de IA, hospedagem pública e políticas finais continuam pendentes de aprovação.
 
 ---
 
@@ -155,9 +155,11 @@ Este projeto é uma Single Page Application (SPA) moderna, reativa e componentiz
 | **Testes Funcionais / E2E** | **Playwright** (`@playwright/test`) | Execução headless ultrarrápida com detecção dinâmica do Chromium da máquina atual | 
 | **Segurança & SAST** | **Semgrep + npm audit** | Auditoria de dependências e análise estática contra XSS, injeções e vazamento de chaves | 
 | **Qualidade de código** | **ESLint** | Linting configurado para manter conformidade e evitar erros em build | 
-| **API do protótipo (SIR-68)** | **Node.js 24 LTS + Fastify 5** | API em processo persistente, ainda não implementada; não é arquitetura edge/serverless |
+| **API do protótipo (SIR-68)** | **Node.js 24 LTS + Fastify 5** | API em processo persistente; não é arquitetura edge/serverless |
 | **Persistência do protótipo (SIR-68)** | **SQLite + IndexedDB** | SQLite para dados administrativos em uma instância; IndexedDB local para rascunhos anônimos e imagens |
 | **PDF do protótipo (SIR-68)** | **Playwright + Chromium** | Geração server-side; requer runtime com Chromium; templates sem JavaScript e sem rede |
+
+> **Implementação atual da API:** rotas Fastify em `api/`, SQLite via `node:sqlite`, sessão administrativa em cookie HttpOnly, IA fake por padrão com adaptador OpenAI opcional, templates HTML/CSS restritos e exportadores PDF/DOCX/Markdown. A API ainda exige validação operacional antes de qualquer tráfego público.
 
 > 🚫 **Regra de Estilização Zero-CSS em `src/`:**
 > Qualquer import de arquivo `.css` (como `import './App.css'` ou `import './index.css'`) dentro de `src/` é **estritamente proibido**. Todas as propriedades visuais devem ser expressas como styled-components ou pelo `<GlobalStyled />`.
@@ -186,7 +188,10 @@ Ao inicializar um novo projeto via `npm create vite@latest`, o template do Vite 
 | `npm run dev` | Inicia o servidor local de desenvolvimento (geralmente em `http://localhost:5173`) | 
 | `npm run build` | Gera a build otimizada para produção no diretório `dist/` | 
 | `npm run preview` | Executa um servidor local servindo a pasta de produção `dist/` | 
+| `npm run api:dev` | Inicia a API Node/Fastify usando o `.env` local, se existir |
+| `npm run api:start` | Inicia a API para execução local/produção usando o `.env` local, se existir |
 | `npm run lint` | Executa a verificação estática do linter (obrigatório rodar antes de finalizar tarefas) | 
+| `npm run test:api` | Executa os testes da API com o runner nativo do Node |
 | `npx playwright test` | Executa a suíte de testes funcionais E2E com Playwright em modo headless | 
 | `npx playwright test --ui` | Executa os testes no modo interativo visual com timeline e DOM snapshot | 
 | `npm audit` | Varre dependências do `package.json` em busca de CVEs conhecidas | 
@@ -208,7 +213,7 @@ As variáveis de ambiente do client-side devem seguir o prefixo `VITE_` para fic
 
 > ⚠️ **Princípio de Zero Segredos:** Variáveis prefixadas com `VITE_` são expostas publicamente no bundle JS final do navegador. **NUNCA** coloque tokens secretos, credenciais de banco ou chaves privadas nessas variáveis.
 
-> **Futuras variáveis exclusivas do servidor:** nomes como `ADMIN_INITIAL_PASSWORD` (provisionamento inicial de uso único) e `OPENAI_API_KEY` (somente se o provedor for aprovado) ainda não foram introduzidos na aplicação nem no `.env.example`. Ao implementá-las, documente-as sem valores reais e jamais use prefixo `VITE_`.
+> **Variáveis exclusivas do servidor (documentadas em `.env.example`):** `API_HOST`, `API_PORT`, `DATABASE_PATH`, `APP_ORIGIN`, `AI_PROVIDER`, `OPENAI_MODEL`, `OPENAI_API_KEY`, `ADMIN_INITIAL_USERNAME` e `ADMIN_INITIAL_PASSWORD`. A chave OpenAI e a senha inicial devem permanecer vazias no exemplo; a senha só provisiona a conta na primeira inicialização e deve ser removida da configuração depois do uso.
 
 ---
 
@@ -224,6 +229,15 @@ meu-projeto/
 │       ├── egm_review_report.md
 │       ├── egm_resolve_report.md
 │       └── architecture_decisions.md
+├── api/                      # API Fastify, schemas, auth, SQLite, IA e exportadores
+│   ├── ai.js
+│   ├── app.js
+│   ├── auth.js
+│   ├── database.js
+│   ├── errors.js
+│   ├── exporters.js
+│   ├── schemas.js
+│   └── server.js
 ├── AGENTS.md                  # Ponto de entrada e guia vivo para IAs e agentes (este arquivo)
 ├── CLAUDE.md, GEMINI.md       # Arquivos ponteiro apontando para AGENTS.md (Claude Code / Gemini CLI)
 ├── .github/copilot-instructions.md # Arquivo ponteiro apontando para AGENTS.md (GitHub Copilot)
@@ -237,6 +251,8 @@ meu-projeto/
 ├── index.html                 # Ponto de entrada HTML do Vite
 ├── public/                    # Assets estáticos públicos servidos na raiz (ícones, favicons, etc.)
 ├── tests/                     # Testes funcionais e fluxos E2E com Playwright
+│   ├── api/
+│   │   └── api.test.js        # Contratos, sessão admin, templates, arquivos e exportação
 │   └── e2e/
 │       └── rotas.spec.js      # Validação funcional inicial: carregamento da casca mestre e rotas
 └── src/
@@ -399,15 +415,15 @@ main.jsx
 
 ### 6.1 Decisões de arquitetura do produto (protótipo SIR-68)
 
-As escolhas detalhadas, contratos, limites iniciais, comparações e pendências estão em [`00-anything/02 - gerador de relatorios 2026-11-09/architecture_decisions.md`](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/architecture_decisions.md). Estas são decisões para protótipo; nenhuma API, integração de IA ou exportador foi implementado nesta etapa.
+As escolhas detalhadas, contratos, limites iniciais, comparações e pendências estão em [`00-anything/02 - gerador de relatorios 2026-11-09/architecture_decisions.md`](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/architecture_decisions.md). A API de protótipo está em `api/`; IA fake é o padrão. O adaptador OpenAI só opera com configuração explícita do servidor e não representa aprovação para piloto público.
 
 * **Cliente**: SPA existente em React/Vite; comunicação via services, mesma origem `/api` em desenvolvimento/produção.
-* **Servidor**: Node.js 24 LTS + Fastify 5 em processo persistente; hospedagem de produção ainda não escolhida.
-* **Banco**: SQLite num volume durável para conta/admin, sessões e templates PDF; protótipo de instância única. Não compartilhar arquivo SQLite entre réplicas.
+* **Servidor**: Node.js 24 LTS + Fastify 5 em processo persistente; implementação em `api/`, hospedagem de produção ainda não escolhida.
+* **Banco**: SQLite via `node:sqlite` num volume durável para conta/admin, sessões e templates PDF; protótipo de instância única. Não compartilhar arquivo SQLite entre réplicas.
 * **Rascunhos públicos**: IndexedDB guarda localmente vários relatórios e blobs de imagens; não há sincronização nem persistência server-side de relatórios de visitantes.
 * **IA**: interface provider-neutral; fake determinístico para desenvolvimento/testes. OpenAI Responses API é candidato recomendado, condicionado a conta, orçamento e revisão dos termos; nenhuma chave é requerida no cliente.
-* **PDF/DOCX/Markdown**: Playwright + Chromium, biblioteca `docx` e serializador Markdown próprio, todos derivados do mesmo schema semântico. Imagens em export Markdown ainda exigem confirmação do formato de entrega.
-* **Processamento**: relatórios/imagens só são enviados sob ação explícita de geração/exportação; arquivos intermediários temporários são removidos/expiram conforme política definida antes de produção.
+* **PDF/DOCX/Markdown**: Playwright + Chromium, biblioteca `docx` e serializador Markdown próprio, todos derivados do mesmo schema semântico. Imagens são anexadas em memória para PDF/DOCX; Markdown informa legenda/alt-text sem anexar binários, aguardando decisão sobre ZIP.
+* **Processamento**: relatórios/imagens só são enviados sob ação explícita de geração/exportação; uploads de exportação permanecem em memória durante a requisição, sem persistência de relatório. Rever limites de concorrência/memória antes de produção.
 
 ---
 
@@ -415,12 +431,12 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 
 > **Instrução para a IA:** À medida que novas entidades, tipos, schemas ou fontes de dados forem introduzidos, documente-os nesta seção em tabelas ou blocos TypeScript/JSON.
 
-### Entidades principais (modelo de protótipo SIR-68; ainda sem implementação):
+### Entidades principais (modelo do protótipo SIR-68):
 | Entidade | Descrição | Onde é persistida / consumida | 
 | ----- | ----- | ----- | 
 | `ReportDraft` | Rascunho anônimo versionado, com metadados, seções ordenadas, detalhes e referências a imagens | IndexedDB no navegador; enviado ao servidor apenas sob ação explícita de geração/exportação |
-| `PdfTemplate` | Modelo de PDF do sistema ou template administrativo HTML/CSS restrito, com estado e versão | `system-default` embutido; modelos administrados persistidos no SQLite do protótipo |
-| `AdminAccount` | Conta administrativa única; senha armazenada somente como hash, com sessão server-side | SQLite/API; sem credencial no React |
+| `PdfTemplate` | Modelo de PDF do sistema ou template administrativo HTML/CSS restrito, com estado e versão | `system-default` embutido; modelos administrados persistidos no SQLite da API |
+| `AdminAccount` | Conta administrativa única; senha armazenada somente como hash, com sessão opaca server-side | SQLite/API; cookie HttpOnly no cliente, sem credencial no React |
 | `ExportRequest` | Snapshot transitório do relatório, formato e anexos vinculados | Memória/arquivos temporários da API durante a requisição; não é histórico persistido |
 
 ---
@@ -436,6 +452,8 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 5. **Templates PDF não executáveis**: templates administrativos não executam JavaScript, eventos inline, recursos remotos ou componentes React; valores do relatório devem ser escapados e renderização isolada conforme a política documentada.
 6. **Erro não destrutivo**: falhas de persistência local, IA, template ou exportação devem ser explícitas e preservar o rascunho; geração concorrente nunca sobrescreve silenciosamente edições posteriores.
 7. **Sem segredo no client**: chaves do provedor de IA e credenciais admin permanecem em configuração server-side, nunca em código versionado ou variáveis `VITE_`.
+8. **Limites da API**: schemas rejeitam payloads inválidos; uploads aceitam JPEG/PNG/WebP e têm limites de arquivo/pixels/total; IA e exportação têm rate limit por IP.
+9. **Templates PDF**: HTML/CSS é limitado por allowlist, sem scripts, handlers, recursos remotos, URLs CSS ou JavaScript no Chromium; templates publicados são os únicos listados publicamente.
 
 ---
 
@@ -561,6 +579,7 @@ O agente NÃO deve criar testes cegamente para cada linha de código alterada. A
   2. **Fluxos Críticos de Entrada (Forms/Modais)**: Criação ou alteração de formulários que realizam operações essenciais (ex: cadastro, filtros complexos, edição de entidades).
   3. **Autenticação & Permissões**: Fluxos de login, logout e bloqueio de rotas protegidas.
   4. **Persistência de Dados Críticos**: Garantir que dados submetidos foram salvos ou atualizados no estado global/storage e refletiram na UI.
+  5. **API e contratos**: Alterações de rotas, schemas, autenticação, limites ou serviços de servidor devem executar `npm run test:api`.
 
 ---
 
@@ -636,6 +655,7 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 * [ ] `npm run lint` executado sem erros ou alertas novos de sintaxe/formatação.
 * [ ] **Ambiente de testes verificado no primeiro acesso**: Caminhos de browser e SO validados e sincronizados na tabela da Seção 10.
 * [ ] **Testes funcionais Playwright executados com sucesso** (`npx playwright test`) caso a tarefa tenha criado ou modificado fluxos críticos (rotas, formulários-chave, autenticação).
+* [ ] **Testes da API executados com sucesso** (`npm run test:api`) caso a tarefa tenha alterado rotas, schemas, persistência, autenticação ou serviços do servidor.
 * [ ] **Auditoria de segurança e dependências verificada**: `npm audit` sem vulnerabilidades críticas se novas libs foram instaladas, e zero segredos privados em `src/` ou variáveis `VITE_`.
 * [ ] Variáveis de ambiente novas (se houver) foram documentadas em `.env.example` e na tabela da Seção 4.
 * [ ] A árvore de pastas da Seção 5 reflete com precisão os arquivos criados/modificados.
@@ -661,3 +681,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-07 | Antigravity AI | Adição da **Regra Obrigatória 6 (Dependência Obrigatória: graphify e Sincronização Contínua com AGENTS.md)**, adição do script `graphify` no `package.json`, inclusão do `graphify-out/` no `.gitignore` e geração do mapa do projeto. | 
 | 2026-11-09 | GitHub Copilot | Registro das decisões arquiteturais de protótipo SIR-68: API Node/Fastify, SQLite/IndexedDB, contrato semântico, privacidade, autenticação admin, comparação de provedores e exportadores. Nenhum serviço ou integração foi implementado; decisões de produção permanecem pendentes. |
 | 2026-11-09 | GitHub Copilot | Ajuste da regra de organização em `00-anything/` para agrupar artefatos por iniciativa e evitar pastas redundantes para brainstorm, draft, review e arquitetura da mesma demanda. |
+| 2026-11-09 | GitHub Copilot | Implementação da API de protótipo SIR-68 Etapa 2: Fastify, SQLite, sessão admin, contratos, adaptador de IA, templates restritos, exportadores, limites, testes e documentação de configuração. |
