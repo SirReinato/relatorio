@@ -80,15 +80,29 @@ Sempre que uma nova atualização, funcionalidade ou refatoração for solicitad
 * **PROIBIDO** gerar, salvar ou descarregar arquivos de rascunho, drafts, specs temporárias, testes avulsos, relatórios de auditoria/crítica/síntese de agentes EGM (`critic_report.md`, `goldfish_review_report.md`, `implementation_readiness_report.md`, `intermediate_zoom_out_report.md`, `concepts_brief.md`, `design_draft.md` etc.) ou anotações na raiz do repositório.
 * A raiz do repositório deve conter **exclusivamente** os arquivos de governança e configuração estruturais (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `package.json`, `vite.config.js` e dotfiles essenciais).
 * **Diretório Obrigatório (`00-anything/`)**: Todos os arquivos de ideação, design, reviews de EGM, relatórios de subagentes, artefatos de testes ou documentações exploratórias DEVEM ser alocados dentro do diretório `00-anything/` na raiz do projeto.
-* **Padrão Obrigatório de Subpastas por Implementação**:
-  Sempre que iniciar uma sessão de EGM, brainstorm, refatoração estrutural, suíte de testes ou planejamento de uma nova feature/implementação, o agente DEVE criar uma nova subpasta dentro de `00-anything/` seguindo rigorosamente o formato:
+* **Padrão Obrigatório de Organização por Iniciativa**:
+  Sempre que iniciar uma sessão de EGM, brainstorm, refatoração estrutural, suíte de testes ou planejamento de uma nova feature/implementação, o agente DEVE criar uma pasta principal dentro de `00-anything/` para a iniciativa, e dentro dela agrupar todos os artefatos correlatos dessa sequência, em vez de abrir várias pastas redundantes para cada etapa isolada.
+  O formato primário é:
   ```text
-  00-anything/{sequencial_2_digitos} - {nome-da-implementacao} {data-yyyy-mm-dd}/
+  00-anything/{sequencial_2_digitos} - {nome-da-iniciativa} {data-yyyy-mm-dd}/
   ```
   * Exemplo 1: `00-anything/01 - arquitetura multi-workspace 2026-11-04/`
-  * Exemplo 2: `00-anything/02 - estruturacao home 2026-11-07/`
-* **Isolamento Total do Escopo**: Todos os arquivos que essa estruturação, teste ou execução for produzir devem ser salvos exclusivamente dentro dessa subpasta correspondente. É terminantemente proibido espalhar arquivos auxiliares fora dela.
-* **Numeração Sequencial Contínua**: Verifique as subpastas já existentes em `00-anything/` e incremente o numeral sequencial de 2 dígitos (`01`, `02`, `03`...) em ordem cronológica crescente.
+  * Exemplo 2: `00-anything/02 - gerador de relatorios 2026-11-09/`
+  * Exemplo 3: `00-anything/03 - onboarding de clientes 2026-11-10/`
+
+  Quando o trabalho de uma mesma iniciativa evoluir em brainstorm, draft, review, resolve e arquitetura, os arquivos devem permanecer dentro da mesma pasta principal, organizados por subnomes ou arquivos principais, por exemplo:
+  ```text
+  00-anything/02 - gerador de relatorios 2026-11-09/
+  ├── plan.md
+  ├── design_draft.md
+  ├── egm_review_report.md
+  ├── egm_resolve_report.md
+  ├── architecture_decisions.md
+  └── screenshots/
+  ```
+  ou, se necessário, com subpastas internas como `01-brainstorm/`, `02-draft/`, `03-review/`, `04-resolve/`, `05-arquitetura/`, sempre mantendo a iniciativa como pai único.
+* **Isolamento Total do Escopo**: Todos os arquivos que essa estruturação, teste ou execução produzir devem ser salvos exclusivamente dentro da pasta principal da iniciativa correspondente. É terminantemente proibido espalhar artefatos da mesma demanda em pastas separadas quando pertencem ao mesmo fluxo de trabalho.
+* **Numeração Sequencial Contínua**: Verifique as pastas já existentes em `00-anything/` e incremente o numeral sequencial de 2 dígitos (`01`, `02`, `03`...) em ordem cronológica crescente. O número identifica a iniciativa, não cada subetapa isolada.
 
 ---
 
@@ -122,9 +136,9 @@ Ao iniciar um novo projeto a partir deste `AGENTS.md`, o agente DEVE seguir estr
 
 Este projeto é uma Single Page Application (SPA) moderna, reativa e componentizada, desenvolvida em React com foco em alta performance, estilização consistente via styled-components, navegação desacoplada, segurança por concepção e validação funcional de ponta a ponta.
 
-* **Objetivo do projeto:** [Placeholder genérico: aguardando detalhamento de negócio pelo usuário].
-* **Público-alvo:** [Aguardando definição].
-* **Status atual:** Estrutura base configurada com rotas mestras, tema global neutro, layout padrão, testes funcionais adaptáveis e diretrizes estritas de segurança.
+* **Objetivo do projeto:** Aplicação web para criação manual ou assistida por IA, edição por seções e exportação de relatórios em PDF, DOCX e Markdown; modelos administrativos customizam o PDF.
+* **Público-alvo:** Visitantes que criam relatórios sem conta e um único administrador autenticado que gerencia modelos PDF.
+* **Status atual:** Casca SPA inicial existente. A issue SIR-68 documenta arquitetura de protótipo; API, persistência de produto, auth, IA e exportadores ainda não foram implementados.
 
 ---
 
@@ -141,6 +155,9 @@ Este projeto é uma Single Page Application (SPA) moderna, reativa e componentiz
 | **Testes Funcionais / E2E** | **Playwright** (`@playwright/test`) | Execução headless ultrarrápida com detecção dinâmica do Chromium da máquina atual | 
 | **Segurança & SAST** | **Semgrep + npm audit** | Auditoria de dependências e análise estática contra XSS, injeções e vazamento de chaves | 
 | **Qualidade de código** | **ESLint** | Linting configurado para manter conformidade e evitar erros em build | 
+| **API do protótipo (SIR-68)** | **Node.js 24 LTS + Fastify 5** | API em processo persistente, ainda não implementada; não é arquitetura edge/serverless |
+| **Persistência do protótipo (SIR-68)** | **SQLite + IndexedDB** | SQLite para dados administrativos em uma instância; IndexedDB local para rascunhos anônimos e imagens |
+| **PDF do protótipo (SIR-68)** | **Playwright + Chromium** | Geração server-side; requer runtime com Chromium; templates sem JavaScript e sem rede |
 
 > 🚫 **Regra de Estilização Zero-CSS em `src/`:**
 > Qualquer import de arquivo `.css` (como `import './App.css'` ou `import './index.css'`) dentro de `src/` é **estritamente proibido**. Todas as propriedades visuais devem ser expressas como styled-components ou pelo `<GlobalStyled />`.
@@ -191,6 +208,8 @@ As variáveis de ambiente do client-side devem seguir o prefixo `VITE_` para fic
 
 > ⚠️ **Princípio de Zero Segredos:** Variáveis prefixadas com `VITE_` são expostas publicamente no bundle JS final do navegador. **NUNCA** coloque tokens secretos, credenciais de banco ou chaves privadas nessas variáveis.
 
+> **Futuras variáveis exclusivas do servidor:** nomes como `ADMIN_INITIAL_PASSWORD` (provisionamento inicial de uso único) e `OPENAI_API_KEY` (somente se o provedor for aprovado) ainda não foram introduzidos na aplicação nem no `.env.example`. Ao implementá-las, documente-as sem valores reais e jamais use prefixo `VITE_`.
+
 ---
 
 ## 5. Estrutura de pastas e arquivos
@@ -198,7 +217,13 @@ As variáveis de ambiente do client-side devem seguir o prefixo `VITE_` para fic
 ```text
 meu-projeto/
 ├── 00-anything/               # Diretório OBRIGATÓRIO para drafts, specs, relatórios EGM e testes
-│   └── 01 - setup inicial 2026-11-07/ # Subpasta de isolamento por tarefa/implementação
+│   ├── 01 - setup inicial 2026-11-07/
+│   └── 02 - gerador de relatorios 2026-11-09/
+│       ├── plan.md
+│       ├── design_draft.md
+│       ├── egm_review_report.md
+│       ├── egm_resolve_report.md
+│       └── architecture_decisions.md
 ├── AGENTS.md                  # Ponto de entrada e guia vivo para IAs e agentes (este arquivo)
 ├── CLAUDE.md, GEMINI.md       # Arquivos ponteiro apontando para AGENTS.md (Claude Code / Gemini CLI)
 ├── .github/copilot-instructions.md # Arquivo ponteiro apontando para AGENTS.md (GitHub Copilot)
@@ -372,16 +397,31 @@ main.jsx
 3. **Contexts**: Armazenam e distribuem dados globais compartilhados entre múltiplas telas.
 4. **Services**: Centralizam todas as requisições HTTP, chamadas a APIs ou acessos ao armazenamento local, aplicando cabeçalhos seguros e tratamento de autenticação.
 
+### 6.1 Decisões de arquitetura do produto (protótipo SIR-68)
+
+As escolhas detalhadas, contratos, limites iniciais, comparações e pendências estão em [`00-anything/02 - gerador de relatorios 2026-11-09/architecture_decisions.md`](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/architecture_decisions.md). Estas são decisões para protótipo; nenhuma API, integração de IA ou exportador foi implementado nesta etapa.
+
+* **Cliente**: SPA existente em React/Vite; comunicação via services, mesma origem `/api` em desenvolvimento/produção.
+* **Servidor**: Node.js 24 LTS + Fastify 5 em processo persistente; hospedagem de produção ainda não escolhida.
+* **Banco**: SQLite num volume durável para conta/admin, sessões e templates PDF; protótipo de instância única. Não compartilhar arquivo SQLite entre réplicas.
+* **Rascunhos públicos**: IndexedDB guarda localmente vários relatórios e blobs de imagens; não há sincronização nem persistência server-side de relatórios de visitantes.
+* **IA**: interface provider-neutral; fake determinístico para desenvolvimento/testes. OpenAI Responses API é candidato recomendado, condicionado a conta, orçamento e revisão dos termos; nenhuma chave é requerida no cliente.
+* **PDF/DOCX/Markdown**: Playwright + Chromium, biblioteca `docx` e serializador Markdown próprio, todos derivados do mesmo schema semântico. Imagens em export Markdown ainda exigem confirmação do formato de entrega.
+* **Processamento**: relatórios/imagens só são enviados sob ação explícita de geração/exportação; arquivos intermediários temporários são removidos/expiram conforme política definida antes de produção.
+
 ---
 
 ## 7. Modelo de dados e estado
 
 > **Instrução para a IA:** À medida que novas entidades, tipos, schemas ou fontes de dados forem introduzidos, documente-os nesta seção em tabelas ou blocos TypeScript/JSON.
 
-### Entidades principais:
+### Entidades principais (modelo de protótipo SIR-68; ainda sem implementação):
 | Entidade | Descrição | Onde é persistida / consumida | 
 | ----- | ----- | ----- | 
-| *Ex: Usuario* | *Dados da conta do usuário autenticado* | *AuthContext / API `/usuarios`* | 
+| `ReportDraft` | Rascunho anônimo versionado, com metadados, seções ordenadas, detalhes e referências a imagens | IndexedDB no navegador; enviado ao servidor apenas sob ação explícita de geração/exportação |
+| `PdfTemplate` | Modelo de PDF do sistema ou template administrativo HTML/CSS restrito, com estado e versão | `system-default` embutido; modelos administrados persistidos no SQLite do protótipo |
+| `AdminAccount` | Conta administrativa única; senha armazenada somente como hash, com sessão server-side | SQLite/API; sem credencial no React |
+| `ExportRequest` | Snapshot transitório do relatório, formato e anexos vinculados | Memória/arquivos temporários da API durante a requisição; não é histórico persistido |
 
 ---
 
@@ -391,6 +431,11 @@ main.jsx
 
 1. **Navegação principal**: Toda tela comum da aplicação deve ser renderizada dentro da casca mestre `MainGeral` (`pages/Outlet/index.jsx`), preservando o Header e Footer fixos.
 2. **Estilização uniforme**: Qualquer elemento visual deve consumir valores de `theme.jsx` (ex.: `props.theme.colors...`, `props.theme.buttons.primary...`, `props.theme.gradients.primary...`) para garantir consistência visual no styled-components.
+3. **Rascunhos anônimos locais**: A aplicação não persiste relatórios de visitantes no servidor por padrão; conteúdo e imagens só saem do browser quando a pessoa solicita geração IA ou exportação.
+4. **Conteúdo sem HTML arbitrário**: A decisão do protótipo é corpo em texto simples com quebras de linha; o serializador Markdown constrói o `.md`. Reabrir se formatação rica for aprovada.
+5. **Templates PDF não executáveis**: templates administrativos não executam JavaScript, eventos inline, recursos remotos ou componentes React; valores do relatório devem ser escapados e renderização isolada conforme a política documentada.
+6. **Erro não destrutivo**: falhas de persistência local, IA, template ou exportação devem ser explícitas e preservar o rascunho; geração concorrente nunca sobrescreve silenciosamente edições posteriores.
+7. **Sem segredo no client**: chaves do provedor de IA e credenciais admin permanecem em configuração server-side, nunca em código versionado ou variáveis `VITE_`.
 
 ---
 
@@ -564,7 +609,7 @@ Para garantir que o código gerado por agentes seja seguro desde a concepção, 
 
 ## 12. Cuidados e armadilhas comuns
 
-1. **Arquivos soltos na raiz**: Nunca salve drafts, specs, notas ou relatórios de subagentes/EGM na raiz. Use sempre `00-anything/{sequencial} - {nome} {data}/`.
+1. **Arquivos soltos na raiz**: Nunca salve drafts, specs, notas ou relatórios de subagentes/EGM na raiz. Agrupe tudo por iniciativa em `00-anything/{sequencial} - {nome} {data}/` e, quando necessário, use subpastas internas para separar brainstorm, draft, review e arquitetura sem criar múltiplas pastas paralelas para a mesma demanda.
 2. **Alucinação de modelo de negócio**: Nunca deduza o nicho da aplicação pelo nome da pasta (ex: criar tela de notícias só porque a pasta se chama `newsHub`). Crie apenas a estrutura estritamente genérica descrita aqui até que o usuário dite os requisitos.
 3. **Esquecer o sufixo `Stl`**: Todo styled-component deve terminar com `Stl` (ex: `ContainerGeralStl`, `BannerHomeStl`).
 4. **Vazamento de CSS externo**: Nunca importe arquivos `.css` crus (nem mesmo `App.css` ou `index.css`). Use exclusivamente `GlobalStyled.jsx` e `styled-components`.
@@ -614,3 +659,5 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-07 | Agente IA | Adição da **Regra Obrigatória 4 (Isolamento de arquivos e relatórios EGM em `00-anything/{sequencial} - {nome} {data}/`)**, **Regra Obrigatória 5 (Inicialização estritamente literal/genérica sem inferências por nome de pasta)**, **Sufixo `Stl` obrigatório para todos os styled-components** e especificação padronizada de `theme.jsx` com 3 variantes de botões, tipografia completa e 2 padrões de gradiente. | 
 | 2026-11-07 | Antigravity AI | Inicialização completa da casca técnica genérica (Vite + React + styled-components + react-router-dom), isolamento em `00-anything/01 - setup inicial 2026-11-07/`, ponteiros multi-IA, testes Playwright validados e detecção do ambiente local. | 
 | 2026-11-07 | Antigravity AI | Adição da **Regra Obrigatória 6 (Dependência Obrigatória: graphify e Sincronização Contínua com AGENTS.md)**, adição do script `graphify` no `package.json`, inclusão do `graphify-out/` no `.gitignore` e geração do mapa do projeto. | 
+| 2026-11-09 | GitHub Copilot | Registro das decisões arquiteturais de protótipo SIR-68: API Node/Fastify, SQLite/IndexedDB, contrato semântico, privacidade, autenticação admin, comparação de provedores e exportadores. Nenhum serviço ou integração foi implementado; decisões de produção permanecem pendentes. |
+| 2026-11-09 | GitHub Copilot | Ajuste da regra de organização em `00-anything/` para agrupar artefatos por iniciativa e evitar pastas redundantes para brainstorm, draft, review e arquitetura da mesma demanda. |
