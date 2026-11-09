@@ -14,15 +14,17 @@
 
 ## 1. Resumo da decisão
 
-O repositório hoje é uma SPA React/Vite, sem API, banco, autenticação, integração com LLM ou armazenamento de produto. Como hospedagem, orçamento, contas de fornecedor e requisitos de retenção ainda não foram informados, a Etapa 1 escolhe uma arquitetura de **protótipo local e de baixo volume**, sem fingir que uma infraestrutura de produção já foi aprovada.
+Na elaboração da Etapa 1, o repositório era uma SPA React/Vite sem API, banco, autenticação, integração com LLM ou armazenamento de produto. Como hospedagem, orçamento e requisitos de retenção ainda não foram aprovados, a Etapa 1 escolheu uma arquitetura de **protótipo local e de baixo volume**, sem tratar a infraestrutura como pronta para produção.
 
-| Camada | Decisão para o protótipo | Situação |
+**Atualização após a Etapa 2 (2026-11-09):** a API Fastify foi implementada com adaptadores fake, OpenAI Responses e Gemini `generateContent`. A pedido do proprietário, Gemini está configurado como provedor local de desenvolvimento com segredo server-side; isso não aprova tráfego público nem altera as pendências de privacidade, orçamento e hospedagem registradas abaixo. A tabela desta seção descreve as decisões no momento da Etapa 1.
+
+| Camada | Decisão para o protótipo | Situação na Etapa 1 |
 |---|---|---|
 | Aplicação web | Manter React 18 + Vite + `react-router-dom` + styled-components; clientes de API ficam em `src/services/` | Stack existente |
 | API | Node.js 24 LTS + Fastify 5, no mesmo repositório e origem da SPA; Vite faz proxy de `/api` em desenvolvimento | Selecionado como arquitetura-alvo, ainda não implementado |
 | Banco de protótipo | SQLite com arquivo em volume persistente para conta admin, sessões e templates; uma instância da API | Selecionado para protótipo; não assumir múltiplas réplicas |
 | Rascunhos anônimos | IndexedDB no navegador para JSON do relatório e `Blob`s de imagem | Selecionado; não sincroniza nem envia conteúdo até operação remota |
-| LLM | Contrato `ReportGenerator` isolado; adaptador fake determinístico em testes/protótipo. OpenAI Responses API é candidato recomendado para primeiro piloto real, sujeito a conta, orçamento e revisão de termos | Não ativar chave/provedor nesta etapa |
+| LLM | Contrato `ReportGenerator` isolado; adaptador fake determinístico em testes/protótipo. OpenAI Responses API era candidato recomendado para primeiro piloto real, sujeito a conta, orçamento e revisão de termos | Não ativar chave/provedor nesta etapa |
 | PDF | Playwright com Chromium no serviço Node, `page.pdf()`; template do sistema como fallback e templates admin restritos | Selecionado; requer runtime com Chromium, não Edge Functions |
 | DOCX | Biblioteca `docx` no servidor, produzindo DOCX a partir do mesmo relatório semântico | Recomendação; validar compatibilidade no spike de implementação |
 | Markdown | Serializador próprio a partir do schema de conteúdo em texto simples; sem converter HTML arbitrário | Selecionado; imagem requer decisão/UX adicional registrada abaixo |
@@ -54,7 +56,7 @@ Comparação resumida das páginas oficiais consultadas em **2026-11-09**. Preç
 | Anthropic API | Claude Sonnet 5: US$ 2 input / US$ 10 output por 1M tokens na tabela consultada; Claude Haiku 5.5 lista US$ 0,10 / US$ 0,50 para prompts até 100k tokens | Termos comerciais consultados afirmam que Anthropic não treina modelos com Customer Content e que o cliente deve avaliar/verificar fatos dos outputs | Alternativa forte; validar disponibilidade/modelo, estruturação de JSON e preço aplicável à conta |
 | Google Gemini API | O preço depende fortemente do modelo/tier; a página lista tier pago e alterações de preço datadas, devendo ser conferida na seleção | Termos consultados indicam que serviços não pagos podem usar prompt e resposta para melhorar produtos e permitir revisão humana; tier pago diz que o conteúdo não é usado para melhorar produtos | Não usar tier gratuito para conteúdo enviado por usuários; tier pago é candidato possível após análise de preço, região e termos |
 
-**Recomendação para piloto real:** manter interface de provedor (`ReportGenerator`) desacoplada e começar benchmark com OpenAI Responses API + saída estruturada JSON Schema, modelo econômico configurável. OpenAI é recomendação, não escolha definitiva: depende de orçamento, criação da conta pelo proprietário, revisão de privacidade/termos e teste de qualidade em português. O protótipo continua com adaptador fake; nenhuma chave é colocada em `VITE_*`, arquivos versionados, browser ou commits.
+**Recomendação para piloto real:** manter interface de provedor (`ReportGenerator`) desacoplada e avaliar saída estruturada e qualidade em português. OpenAI era a recomendação inicial; Gemini foi habilitado posteriormente a pedido do proprietário para desenvolvimento local. Nenhum provedor é aprovado para piloto público sem revisão de orçamento, privacidade e termos. Nenhuma chave é colocada em `VITE_*`, arquivos versionados, browser ou commits.
 
 #### Estimativa ilustrativa, não cotação
 
@@ -182,12 +184,12 @@ Os limites são rejeitados com erro de validação claro. O navegador também de
 - Primeiro provisionamento recebe variável server-side de uso único (por exemplo `ADMIN_INITIAL_PASSWORD`) e grava hash; removida após uso. A aplicação deve falhar de forma explícita se não houver configuração segura, sem criar credencial conhecida.
 - Sessão opaca armazenada no servidor/SQLite, cookie `HttpOnly`, `Secure` em produção, `SameSite=Lax`, path restrito e expiração; proteção CSRF/Origin em mutações.
 - Logout invalida sessão. Alteração/rotação só por sessão autenticada ou procedimento operacional local documentado; não existe reset público.
-- Segredos de LLM permanecem somente no ambiente do servidor, por exemplo `OPENAI_API_KEY`; nenhuma chave administrativa/provider começa com `VITE_`.
+- Segredos de LLM permanecem somente no ambiente do servidor, por exemplo `OPENAI_API_KEY` ou `GEMINI_API_KEY`; nenhuma chave administrativa/provider começa com `VITE_`.
 - Não criar segredo real nem valor de exemplo com aparência de credencial em `.env.example`.
 
 ## 7. Contratos HTTP propostos
 
-Prefixo `/api/v1`. Schemas JSON Schema compartilháveis entre documentação e Fastify; validação no limite da API e validação adicional de conteúdo gerado por LLM. URLs abaixo são contrato-alvo, não endpoints implementados.
+Prefixo `/api/v1`. Schemas JSON Schema compartilháveis entre documentação e Fastify; validação no limite da API e validação adicional de conteúdo gerado por LLM. Os contratos abaixo foram implementados como API de protótipo na Etapa 2.
 
 ### 7.1 Erro comum
 

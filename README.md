@@ -17,7 +17,7 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 
 - Node.js 24 LTS + Fastify 5 e SQLite (`node:sqlite`); SQLite é para uma instância com volume durável.
 - Sessão admin opaca com cookie HttpOnly; senha provisionada inicialmente por variáveis server-side.
-- Adaptador fake de IA por padrão. O adaptador OpenAI Responses API só é usado quando `AI_PROVIDER=openai` e `OPENAI_API_KEY` estão configuradas no servidor.
+- Adaptador fake de IA por padrão. OpenAI Responses API (`AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL`) e Gemini API (`AI_PROVIDER=gemini`, `GEMINI_API_KEY`, `GEMINI_MODEL`) são opcionais e executados exclusivamente no servidor.
 - Exportação PDF com Playwright/Chromium, DOCX com `docx` e Markdown próprio; os relatórios não são persistidos no servidor.
 - Templates PDF HTML/CSS usam allowlist e renderização sem JavaScript ou acesso à rede.
 - Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
@@ -28,7 +28,7 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 2. Inicie a API em um terminal: `npm run api:dev`.
 3. Inicie a SPA em outro terminal: `npm run dev`. O Vite encaminha `/api` para a API local.
 
-O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a conta admin no primeiro arranque; remova-a do `.env` após o provisionamento. A chave OpenAI é opcional e nunca deve usar o prefixo `VITE_`. Para gerar PDFs, instale o Chromium compatível com Playwright usando `npx playwright install chromium`, se ainda não estiver instalado.
+O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a conta admin no primeiro arranque; remova-a do `.env` após o provisionamento. Para usar IA, defina `AI_PROVIDER=openai` ou `AI_PROVIDER=gemini` e configure a chave/modelo correspondentes; chaves nunca devem usar o prefixo `VITE_`. Para gerar PDFs, instale o Chromium compatível com Playwright usando `npx playwright install chromium`, se ainda não estiver instalado.
 
 ### Endpoints implementados
 

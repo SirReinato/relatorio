@@ -227,6 +227,124 @@ describe('API do protótipo', () => {
     }
   });
 
+  it('gera relatório pela API Gemini com chave server-side e schema JSON', async () => {
+    const geminiApp = await createApi({
+      databasePath: join(directory, 'gemini.sqlite'),
+      adminUsername: 'admin',
+      adminPassword: 'local-test-password-123',
+      aiProvider: 'GEMINI',
+      geminiApiKey: 'server-only-gemini-secret',
+      geminiModel: 'gemini-test-model',
+      appOrigin: origin,
+      secureCookies: false,
+      logger: false,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-test-model:generateContent');
+      assert.equal(options.headers['x-goog-api-key'], 'server-only-gemini-secret');
+      assert.equal(options.headers.authorization, undefined);
+      const request = JSON.parse(options.body);
+      assert.equal(request.generationConfig.responseMimeType, 'application/json');
+      assert.equal(request.generationConfig.responseSchema.type, 'OBJECT');
+      assert.ok(request.systemInstruction.parts[0].text.includes('português do Brasil'));
+      return new Response(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify(request.systemInstruction.parts[0].text.startsWith('Proponha')
+                ? {
+                  title: 'Seção Gemini atualizada',
+                  body: 'Conteúdo atualizado de teste.',
+                  importantDetails: [],
+                }
+                : {
+                title: 'Relatório Gemini',
+                sections: [{
+                  title: 'Visão geral',
+                  body: 'Conteúdo estruturado de teste.',
+                  importantDetails: [],
+                }],
+                }),
+            }],
+          },
+          finishReason: 'STOP',
+        }],
+      }), { status: 200 });
+    };
+
+    try {
+      const response = await geminiApp.inject({
+        method: 'POST',
+        url: '/api/v1/ai/reports',
+        payload: { topic: 'Teste Gemini', brief },
+      });
+      assert.equal(response.statusCode, 200, response.body);
+      assert.equal(response.json().title, 'Relatório Gemini');
+      assert.equal(response.json().sections.length, 1);
+      assert.equal(response.body.includes('server-only-gemini-secret'), false);
+
+      const sectionId = randomUUID();
+      const regeneration = await geminiApp.inject({
+        method: 'POST',
+        url: '/api/v1/ai/sections/regenerate',
+        payload: {
+          reportContext: {
+            title: 'Relatório Gemini',
+            topic: 'Teste Gemini',
+            brief,
+            sectionTitles: ['Visão geral'],
+          },
+          targetSection: {
+            id: sectionId,
+            title: 'Visão geral',
+            body: 'Conteúdo anterior.',
+            importantDetails: [],
+            clientRevision: 3,
+          },
+        },
+      });
+      assert.equal(regeneration.statusCode, 200, regeneration.body);
+      assert.equal(regeneration.json().sectionId, sectionId);
+      assert.equal(regeneration.json().proposal.title, 'Seção Gemini atualizada');
+    } finally {
+      globalThis.fetch = originalFetch;
+      await geminiApp.close();
+    }
+  });
+
+  it('mapeia falha de quota Gemini sem expor resposta nem credencial', async () => {
+    const geminiApp = await createApi({
+      databasePath: join(directory, 'gemini-quota.sqlite'),
+      adminUsername: 'admin',
+      adminPassword: 'local-test-password-123',
+      aiProvider: 'gemini',
+      geminiApiKey: 'server-only-gemini-secret',
+      appOrigin: origin,
+      secureCookies: false,
+      logger: false,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      error: { message: 'server-only-gemini-secret quota details' },
+    }), { status: 429 });
+
+    try {
+      const response = await geminiApp.inject({
+        method: 'POST',
+        url: '/api/v1/ai/reports',
+        payload: { topic: 'Teste de quota Gemini', brief },
+      });
+      assert.equal(response.statusCode, 503);
+      assert.equal(response.json().error.code, 'AI_UNAVAILABLE');
+      assert.equal(response.body.includes('server-only-gemini-secret'), false);
+      assert.equal(response.body.includes('quota details'), false);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await geminiApp.close();
+    }
+  });
+
   it('exporta Markdown e rejeita payload de exportação inválido', async () => {
     const boundary = 'relatorio-test-boundary';
     const report = makeReport();

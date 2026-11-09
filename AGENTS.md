@@ -159,7 +159,7 @@ Este projeto é uma Single Page Application (SPA) moderna, reativa e componentiz
 | **Persistência do protótipo (SIR-68)** | **SQLite + IndexedDB** | SQLite para dados administrativos em uma instância; IndexedDB local para rascunhos anônimos e imagens |
 | **PDF do protótipo (SIR-68)** | **Playwright + Chromium** | Geração server-side; requer runtime com Chromium; templates sem JavaScript e sem rede |
 
-> **Implementação atual da API:** rotas Fastify em `api/`, SQLite via `node:sqlite`, sessão administrativa em cookie HttpOnly, IA fake por padrão com adaptador OpenAI opcional, templates HTML/CSS restritos e exportadores PDF/DOCX/Markdown. A API ainda exige validação operacional antes de qualquer tráfego público.
+> **Implementação atual da API:** rotas Fastify em `api/`, SQLite via `node:sqlite`, sessão administrativa em cookie HttpOnly, IA fake por padrão com adaptadores OpenAI e Gemini opcionais, templates HTML/CSS restritos e exportadores PDF/DOCX/Markdown. A API ainda exige validação operacional antes de qualquer tráfego público.
 
 > 🚫 **Regra de Estilização Zero-CSS em `src/`:**
 > Qualquer import de arquivo `.css` (como `import './App.css'` ou `import './index.css'`) dentro de `src/` é **estritamente proibido**. Todas as propriedades visuais devem ser expressas como styled-components ou pelo `<GlobalStyled />`.
@@ -213,7 +213,7 @@ As variáveis de ambiente do client-side devem seguir o prefixo `VITE_` para fic
 
 > ⚠️ **Princípio de Zero Segredos:** Variáveis prefixadas com `VITE_` são expostas publicamente no bundle JS final do navegador. **NUNCA** coloque tokens secretos, credenciais de banco ou chaves privadas nessas variáveis.
 
-> **Variáveis exclusivas do servidor (documentadas em `.env.example`):** `API_HOST`, `API_PORT`, `DATABASE_PATH`, `APP_ORIGIN`, `AI_PROVIDER`, `OPENAI_MODEL`, `OPENAI_API_KEY`, `ADMIN_INITIAL_USERNAME` e `ADMIN_INITIAL_PASSWORD`. A chave OpenAI e a senha inicial devem permanecer vazias no exemplo; a senha só provisiona a conta na primeira inicialização e deve ser removida da configuração depois do uso.
+> **Variáveis exclusivas do servidor (documentadas em `.env.example`):** `API_HOST`, `API_PORT`, `DATABASE_PATH`, `APP_ORIGIN`, `AI_PROVIDER`, `OPENAI_MODEL`, `OPENAI_API_KEY`, `GEMINI_MODEL`, `GEMINI_API_KEY`, `ADMIN_INITIAL_USERNAME` e `ADMIN_INITIAL_PASSWORD`. As chaves OpenAI/Gemini e a senha inicial devem permanecer vazias no exemplo; a senha só provisiona a conta na primeira inicialização e deve ser removida da configuração depois do uso.
 
 ---
 
@@ -415,13 +415,13 @@ main.jsx
 
 ### 6.1 Decisões de arquitetura do produto (protótipo SIR-68)
 
-As escolhas detalhadas, contratos, limites iniciais, comparações e pendências estão em [`00-anything/02 - gerador de relatorios 2026-11-09/architecture_decisions.md`](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/architecture_decisions.md). A API de protótipo está em `api/`; IA fake é o padrão. O adaptador OpenAI só opera com configuração explícita do servidor e não representa aprovação para piloto público.
+As escolhas detalhadas, contratos, limites iniciais, comparações e pendências estão em [`00-anything/02 - gerador de relatorios 2026-11-09/architecture_decisions.md`](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/architecture_decisions.md). A API de protótipo está em `api/`; IA fake é o padrão. OpenAI e Gemini operam somente com configuração explícita do servidor e não representam aprovação para piloto público.
 
 * **Cliente**: SPA existente em React/Vite; comunicação via services, mesma origem `/api` em desenvolvimento/produção.
 * **Servidor**: Node.js 24 LTS + Fastify 5 em processo persistente; implementação em `api/`, hospedagem de produção ainda não escolhida.
 * **Banco**: SQLite via `node:sqlite` num volume durável para conta/admin, sessões e templates PDF; protótipo de instância única. Não compartilhar arquivo SQLite entre réplicas.
 * **Rascunhos públicos**: IndexedDB guarda localmente vários relatórios e blobs de imagens; não há sincronização nem persistência server-side de relatórios de visitantes.
-* **IA**: interface provider-neutral; fake determinístico para desenvolvimento/testes. OpenAI Responses API é candidato recomendado, condicionado a conta, orçamento e revisão dos termos; nenhuma chave é requerida no cliente.
+* **IA**: interface provider-neutral; fake determinístico para desenvolvimento/testes, com adaptadores server-side OpenAI Responses API e Gemini `generateContent`. Provedor, conta, orçamento e termos devem ser aprovados antes do uso público; nenhuma chave é requerida no cliente.
 * **PDF/DOCX/Markdown**: Playwright + Chromium, biblioteca `docx` e serializador Markdown próprio, todos derivados do mesmo schema semântico. Imagens são anexadas em memória para PDF/DOCX; Markdown informa legenda/alt-text sem anexar binários, aguardando decisão sobre ZIP.
 * **Processamento**: relatórios/imagens só são enviados sob ação explícita de geração/exportação; uploads de exportação permanecem em memória durante a requisição, sem persistência de relatório. Rever limites de concorrência/memória antes de produção.
 
@@ -682,3 +682,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-09 | GitHub Copilot | Registro das decisões arquiteturais de protótipo SIR-68: API Node/Fastify, SQLite/IndexedDB, contrato semântico, privacidade, autenticação admin, comparação de provedores e exportadores. Nenhum serviço ou integração foi implementado; decisões de produção permanecem pendentes. |
 | 2026-11-09 | GitHub Copilot | Ajuste da regra de organização em `00-anything/` para agrupar artefatos por iniciativa e evitar pastas redundantes para brainstorm, draft, review e arquitetura da mesma demanda. |
 | 2026-11-09 | GitHub Copilot | Implementação da API de protótipo SIR-68 Etapa 2: Fastify, SQLite, sessão admin, contratos, adaptador de IA, templates restritos, exportadores, limites, testes e documentação de configuração. |
+| 2026-11-09 | GitHub Copilot | Inclusão do adaptador server-side Gemini `generateContent`, configuração dedicada `GEMINI_API_KEY`/`GEMINI_MODEL`, validação estruturada, testes de falha/segredo e documentação da integração opcional. |
