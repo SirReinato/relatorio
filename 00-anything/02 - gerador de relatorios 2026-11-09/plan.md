@@ -111,6 +111,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 
 ### Etapa 3 — `feat(home): criar landing page e inicio do fluxo`
 
+**Status:** Implementada. Landing page, modal acessível, escolha de modelos publicados, fluxo inicial de relatório e rotas administrativas estão conectados.
+
 **Objetivo funcional:** Substituir o placeholder da Home por uma landing page explicativa e permitir iniciar um relatório escolhendo modalidade e formatos.
 
 **Passo a passo técnico:**
@@ -126,6 +128,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 - O CTA abre uma modal navegável por teclado que permite escolher modalidade e vários formatos.
 - Erros/carregamento/ausência de modelos têm estados visíveis; nenhuma escolha de formato impede edição.
 - Rotas e casca mestre continuam funcionais; testes Playwright cobrem abertura, escolhas e navegação essencial.
+
+**Entrega realizada:** Landing responsiva, modal com estados de carregamento/erro/vazio, seleção IA/manual, formatos e modelos publicados, rotas `/relatorios/novo`, `/admin/login` e `/admin`, login/logout por sessão e cobertura E2E. Geração, editor e CRUD de modelos permanecem em etapas posteriores.
 
 **Prompt copiável:**  
 > Implemente a landing page e o início do fluxo definidos na Etapa 3 de `plan.md`: banner explicativo, CTA, login admin e modal para escolher IA/manual, múltiplos formatos e modelo PDF publicado. Preserve a arquitetura existente e os padrões de acessibilidade, tema e styled-components com sufixo `Stl`. Não implemente geração de IA nem exportadores nesta etapa. Atualize a documentação estrutural e crie testes E2E dos fluxos críticos.
@@ -176,9 +180,11 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 
 **Objetivo funcional:** Proteger uma área exclusiva do administrador para criar, revisar e publicar templates PDF que serão escolhidos por usuários.
 
+**Nota de replanejamento:** A Etapa 3 já entregou a tela de login integrada a `POST /api/v1/admin/session`, a verificação de sessão em `/admin`, logout e listagem somente leitura de modelos. Esta etapa deve consolidar esses fluxos e implementar CRUD, prévia e publicação.
+
 **Passo a passo técnico:**
-1. Criar tela de login e rotas administrativas protegidas com o mecanismo decidido na Etapa 1; não embutir senha/token em código cliente.
-2. Implementar sessão segura, logout, tratamento de sessão expirada e proteção de operações administrativas no servidor.
+1. Fortalecer as rotas administrativas e o tratamento de sessão expirada; não embutir senha/token em código cliente.
+2. Validar login/logout e autorização no navegador contra os contratos da API, incluindo falhas de rede e sessão expirada.
 3. Criar CRUD de modelos PDF, com nome, descrição, status publicado/inativo e conteúdo HTML/CSS dentro dos limites definidos.
 4. Oferecer placeholders documentados para campos do relatório e prévia com dados de exemplo.
 5. Sanitizar/restringir HTML e CSS, bloquear JavaScript e renderizar a prévia em contexto isolado; não executar conteúdo arbitrário no DOM da aplicação.

@@ -1,27 +1,161 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Navegação e Casca Mestre', () => {
-  test('deve renderizar o layout geral com Header fixo, conteúdo da Home e Footer', async ({ page }) => {
+const publishedTemplates = [
+  {
+    id: 'system-default',
+    name: 'Modelo padrão',
+    description: 'Modelo do sistema.',
+    status: 'published',
+  },
+  {
+    id: 'modelo-publicado',
+    name: 'Modelo publicado',
+    description: 'Modelo visível para visitantes.',
+    status: 'published',
+  },
+  {
+    id: 'modelo-inativo',
+    name: 'Modelo inativo',
+    description: 'Rascunho administrativo.',
+    status: 'draft',
+  },
+];
+
+async function fulfillJson(route, status, body) {
+  await route.fulfill({
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  });
+}
+
+test.describe('Landing page e início do relatório', () => {
+  test('renderiza a casca mestre, a explicação do fluxo e os acessos principais', async ({ page }) => {
     await page.goto('/');
 
-    // Valida container geral do layout mestre
-    const layoutGeral = page.getByTestId('layout-geral');
-    await expect(layoutGeral).toBeVisible();
+    await expect(page.getByTestId('layout-geral')).toBeVisible();
+    await expect(page.getByTestId('header-fixo')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Transforme suas ideias em relatórios claros.' })).toBeVisible();
+    await expect(page.getByTestId('botao-iniciar-relatorio')).toBeVisible();
+    await expect(page.getByTestId('link-login-admin')).toHaveAttribute('href', '/admin/login');
+    await expect(page.getByTestId('footer-fixo')).toContainText('Sistema de Relatórios');
+  });
 
-    // Valida Header fixo e Logo
-    const header = page.getByTestId('header-fixo');
-    await expect(header).toBeVisible();
-    await expect(page.getByTestId('header-logo')).toContainText('Relatórios');
+  test('abre modal acessível por teclado, fecha com Escape e devolve foco ao CTA', async ({ page }) => {
+    await page.route('**/api/v1/templates', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await fulfillJson(route, 200, { templates: publishedTemplates });
+    });
+    await page.goto('/');
+    const startButton = page.getByRole('button', { name: 'Iniciar novo relatório' });
 
-    // Valida renderização da rota index (Home) dentro do Outlet
-    const paginaHome = page.getByTestId('pagina-home');
-    await expect(paginaHome).toBeVisible();
-    await expect(page.getByTestId('titulo-home')).toHaveText('Página Inicial');
-    await expect(page.getByTestId('botao-acao-inicial')).toBeVisible();
+    await startButton.click();
+    const dialog = page.getByRole('dialog', { name: 'Iniciar novo relatório' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: /Escrever manualmente/ })).toBeChecked();
+    await expect(dialog.getByRole('status')).toHaveText('Carregando modelos PDF publicados…');
+    await expect(dialog.getByLabel('Modelo de PDF')).toHaveValue('system-default');
 
-    // Valida Footer fixo
-    const footer = page.getByTestId('footer-fixo');
-    await expect(footer).toBeVisible();
-    await expect(footer).toContainText('Sistema de Relatórios');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(startButton).toBeFocused();
+  });
+
+  test('seleciona modalidade, vários formatos e apenas modelos publicados antes de continuar', async ({ page }) => {
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: publishedTemplates }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Iniciar novo relatório' });
+    await dialog.getByRole('radio', { name: /Começar com IA/ }).check();
+    await dialog.getByRole('checkbox', { name: 'DOCX' }).check();
+    await dialog.getByRole('checkbox', { name: 'Markdown' }).check();
+    await dialog.getByLabel('Modelo de PDF').selectOption('modelo-publicado');
+
+    await expect(dialog.getByLabel('Modelo de PDF').locator('option')).toHaveCount(2);
+    await expect(dialog.getByLabel('Modelo de PDF')).not.toContainText('Modelo inativo');
+    await dialog.getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page).toHaveURL('/relatorios/novo');
+    await expect(page.getByTestId('pagina-novo-relatorio')).toBeVisible();
+    await expect(page.getByText('Começar com IA')).toBeVisible();
+    await expect(page.getByTestId('formatos-selecionados')).toHaveText('PDF, DOCX, Markdown');
+    await expect(page.getByTestId('modelo-selecionado')).toHaveText('Modelo publicado');
+  });
+
+  test('permite continuar sem formatos ou modelos publicados', async ({ page }) => {
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: [] }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Iniciar novo relatório' });
+    await expect(dialog.getByRole('status')).toHaveText('Nenhum modelo publicado disponível. Você ainda pode iniciar e escolher depois.');
+    await dialog.getByRole('checkbox', { name: 'PDF' }).uncheck();
+    await expect(dialog.getByRole('button', { name: 'Continuar' })).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page).toHaveURL('/relatorios/novo');
+    await expect(page.getByTestId('formatos-selecionados')).toHaveText('Nenhum formato selecionado; você poderá escolher depois.');
+  });
+
+  test('expõe falha ao carregar modelos e permite tentar novamente', async ({ page }) => {
+    let requestCount = 0;
+    await page.route('**/api/v1/templates', async (route) => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        await fulfillJson(route, 503, { error: { code: 'UNAVAILABLE', message: 'Serviço temporariamente indisponível.' } });
+        return;
+      }
+      await fulfillJson(route, 200, { templates: publishedTemplates });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Iniciar novo relatório' });
+    await expect(dialog.getByRole('alert')).toContainText('Serviço temporariamente indisponível.');
+    await dialog.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(dialog.getByLabel('Modelo de PDF')).toHaveValue('system-default');
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+  });
+});
+
+test.describe('Acesso administrativo', () => {
+  test('envia credenciais à API, abre a área e encerra a sessão', async ({ page }) => {
+    await page.route('**/api/v1/admin/session', async (route) => {
+      if (route.request().method() === 'POST') {
+        await fulfillJson(route, 200, { authenticated: true, expiresAt: new Date().toISOString() });
+        return;
+      }
+      await fulfillJson(route, 200, { authenticated: false });
+    });
+    await page.route('**/api/v1/admin/templates', (route) => fulfillJson(route, 200, {
+      templates: [{
+        id: 'modelo-pdf-1',
+        name: 'Modelo de teste',
+        status: 'published',
+      }],
+    }));
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Acesso administrativo' }).click();
+    await expect(page).toHaveURL('/admin/login');
+    await page.getByLabel('Usuário').fill('admin');
+    await page.getByLabel('Senha').fill('senha-temporaria');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+
+    await expect(page).toHaveURL('/admin');
+    await expect(page.getByTestId('pagina-admin')).toContainText('Modelo de teste');
+    await page.getByRole('button', { name: 'Sair' }).click();
+    await expect(page).toHaveURL('/admin/login');
+  });
+
+  test('redireciona à tela de login quando a sessão protegida não existe', async ({ page }) => {
+    await page.route('**/api/v1/admin/templates', (route) => fulfillJson(route, 401, {
+      error: { code: 'UNAUTHENTICATED', message: 'Sessão administrativa inválida.' },
+    }));
+    await page.goto('/admin');
+
+    await expect(page).toHaveURL('/admin/login');
+    await expect(page.getByTestId('formulario-login-admin')).toBeVisible();
   });
 });

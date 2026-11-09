@@ -21,6 +21,8 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - Exportação PDF com Playwright/Chromium, DOCX com `docx` e Markdown próprio; os relatórios não são persistidos no servidor.
 - Templates PDF HTML/CSS usam allowlist e renderização sem JavaScript ou acesso à rede.
 - Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
+- A landing abre um modal acessível para modalidade, formatos e modelos publicados. O início do relatório resume as escolhas sem executar geração ou exportação.
+- `/admin/login` autentica contra a API e `/admin` verifica a sessão; a gestão de modelos será ampliada na Etapa 6.
 
 ### Executar localmente
 
@@ -40,6 +42,8 @@ O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a c
 | Login/logout/rotação de senha admin | `POST /api/v1/admin/session`, `DELETE /api/v1/admin/session`, `PUT /api/v1/admin/password` |
 | CRUD/publicação/preview de modelos | `/api/v1/admin/templates` |
 | Exportar PDF, DOCX ou Markdown | `POST /api/v1/exports/{pdf,docx,markdown}` |
+
+Rotas da SPA: `/` (landing), `/relatorios/novo` (resumo do início do fluxo), `/admin/login` e `/admin` (área administrativa inicial). Edição, geração e CRUD completo de modelos seguem nas etapas posteriores.
 
 Teste de API: `npm run test:api`. Os dados SQLite locais ficam em `data/`, ignorada pelo Git.
 
