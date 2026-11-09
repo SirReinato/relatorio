@@ -2,7 +2,7 @@
 
 Aplicação web planejada para criar relatórios manualmente ou com auxílio de IA, revisar conteúdo por seções e exportar PDF, DOCX e Markdown. Visitantes poderão criar relatórios sem conta; somente o administrador terá acesso autenticado para gerenciar modelos visuais de PDF.
 
-> **Estado atual:** o repositório contém a casca SPA React/Vite. Backend, autenticação administrativa, persistência de produto, integração real de IA e exportadores ainda não foram implementados. A arquitetura registrada para o protótipo não representa uma implantação de produção aprovada.
+> **Estado atual:** SPA React/Vite e API de protótipo implementadas. A API oferece geração fake por padrão, sessão administrativa, modelos PDF e exportação; IA real é opcional e exige configuração server-side. Hospedagem e ativação pública ainda não foram aprovadas.
 
 ## Stack atual da SPA
 
@@ -13,16 +13,37 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - **Testes E2E:** Playwright
 - **Qualidade:** ESLint
 
-## Arquitetura planejada para o protótipo
+## API do protótipo
 
-- API Node.js 24 LTS + Fastify 5, em processo persistente.
-- SQLite em volume durável para dados administrativos, em protótipo de instância única.
-- IndexedDB para rascunhos anônimos e imagens locais; relatórios não são persistidos no servidor por padrão.
-- Adaptador fake de IA para desenvolvimento/testes; OpenAI Responses API é candidato para piloto, ainda sujeito a aprovação, conta, orçamento e revisão de termos.
-- Playwright + Chromium para PDF; biblioteca `docx` para DOCX; serializador próprio para Markdown.
-- Templates PDF HTML/CSS restritos, sem JavaScript, com modelo padrão do sistema.
+- Node.js 24 LTS + Fastify 5 e SQLite (`node:sqlite`); SQLite é para uma instância com volume durável.
+- Sessão admin opaca com cookie HttpOnly; senha provisionada inicialmente por variáveis server-side.
+- Adaptador fake de IA por padrão. O adaptador OpenAI Responses API só é usado quando `AI_PROVIDER=openai` e `OPENAI_API_KEY` estão configuradas no servidor.
+- Exportação PDF com Playwright/Chromium, DOCX com `docx` e Markdown próprio; os relatórios não são persistidos no servidor.
+- Templates PDF HTML/CSS usam allowlist e renderização sem JavaScript ou acesso à rede.
+- Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
 
-**Atenção:** produção requer decidir plataforma de hospedagem, segredo e orçamento de IA, retenção, rate limit, persistência/backup e entrega Markdown com imagens. Não há chaves no cliente e nenhuma integração real está configurada.
+### Executar localmente
+
+1. Copie `.env.example` para `.env` e defina uma senha forte em `ADMIN_INITIAL_PASSWORD`.
+2. Inicie a API em um terminal: `npm run api:dev`.
+3. Inicie a SPA em outro terminal: `npm run dev`. O Vite encaminha `/api` para a API local.
+
+O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a conta admin no primeiro arranque; remova-a do `.env` após o provisionamento. A chave OpenAI é opcional e nunca deve usar o prefixo `VITE_`. Para gerar PDFs, instale o Chromium compatível com Playwright usando `npx playwright install chromium`, se ainda não estiver instalado.
+
+### Endpoints implementados
+
+| Operação | Endpoint |
+|---|---|
+| Saúde da API | `GET /health` |
+| Gerar relatório / regenerar seção | `POST /api/v1/ai/reports`, `POST /api/v1/ai/sections/regenerate` |
+| Listar modelos publicados | `GET /api/v1/templates` |
+| Login/logout/rotação de senha admin | `POST /api/v1/admin/session`, `DELETE /api/v1/admin/session`, `PUT /api/v1/admin/password` |
+| CRUD/publicação/preview de modelos | `/api/v1/admin/templates` |
+| Exportar PDF, DOCX ou Markdown | `POST /api/v1/exports/{pdf,docx,markdown}` |
+
+Teste de API: `npm run test:api`. Os dados SQLite locais ficam em `data/`, ignorada pelo Git.
+
+**Atenção:** produção requer decidir hospedagem, orçamento/termos do provedor de IA, política de retenção, limites de concorrência/memória, backups e entrega Markdown com imagens. Não publique a API antes dessa revisão.
 
 As decisões, contratos, limites iniciais, comparações e pendências estão em [architecture_decisions.md](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/architecture_decisions.md). O escopo e os fluxos de produto estão em [design_draft.md](./00-anything/02%20-%20gerador%20de%20relatorios%202026-11-09/design_draft.md). Para regras de arquitetura, segurança e desenvolvimento, consulte [AGENTS.md](./AGENTS.md).
 
@@ -30,10 +51,10 @@ As decisões, contratos, limites iniciais, comparações e pendências estão em
 
 ```bash
 npm install
+npm run api:dev
 npm run dev
 npm run build
 npm run lint
+npm run test:api
 npx playwright test
 ```
-
-Ainda não há comando de execução da API do protótipo, pois sua implementação ocorrerá em etapas futuras.

@@ -86,6 +86,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 
 ### Etapa 2 — `feat(api): criar contratos seguros e integracao de servidor`
 
+**Status:** Implementada como API local de protótipo. A integração OpenAI é opcional e permanece desativada por padrão; a implantação pública e decisões pendentes de produção continuam fora do escopo desta etapa.
+
 **Objetivo funcional:** Disponibilizar a camada de servidor escolhida para IA, persistência administrativa e exportação, isolando segredos e validando entradas.
 
 **Passo a passo técnico:**
@@ -101,6 +103,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 - Chamadas de IA e armazenamento administrativo não dependem de credenciais expostas no navegador.
 - Falhas/limites de provedor não retornam sucesso falso nem relatório incompleto sem indicação.
 - Configuração e deploy local estão documentados; `AGENTS.md`, `README.md` e graphify refletem a estrutura real.
+
+**Entrega realizada:** API Fastify em `api/`, SQLite para conta/sessões/templates, adaptador fake + Responses API configurável, templates PDF com allowlist, exportadores PDF/DOCX/Markdown, upload de imagens transitório, rate limit, configuração em `.env.example` e testes em `tests/api/api.test.js`.
 
 **Prompt copiável:**  
 > Implemente a camada de servidor e os contratos do MVP conforme as decisões registradas na Etapa 1 de `plan.md`. Centralize validação e tratamento de erros, mantenha credenciais exclusivamente no servidor e proteja endpoints públicos contra abuso. Não altere o escopo do produto. Atualize `.env.example`, `AGENTS.md`, `README.md` e graphify conforme as convenções do `AGENTS.md`. Adicione testes focados para validação e falhas do serviço.
