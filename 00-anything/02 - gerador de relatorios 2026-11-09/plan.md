@@ -23,7 +23,7 @@ Implementar a experiência em etapas, começando por uma decisão técnica expl�
 | Tema | Decisão |
 |---|---|
 | Usuários | Criação de relatórios pública, sem conta; login somente para o administrador. |
-| IA e infraestrutura | Protótipo: Node/Fastify + SQLite e adaptador fake; OpenAI Responses API é candidato recomendado, sem provedor/conta/chave aprovados para uso real. |
+| IA e infraestrutura | Protótipo: Node/Fastify + SQLite, adaptador fake e integrações opcionais OpenAI/Gemini no servidor; nenhum provedor está aprovado para tráfego público. |
 | Entrada do relatório | Tema obrigatório; parâmetros opcionais, como objetivo, público-alvo, extensão, tom e fontes; português do Brasil como padrão. |
 | Edição | Editar títulos e conteúdos, adicionar/remover/reordenar seções, editar detalhes importantes, pré-visualizar e regenerar seção com IA. |
 | Imagens | Upload com validação e legenda opcional, vinculada à seção. |
@@ -51,7 +51,7 @@ Resumo da arquitetura de protótipo:
 
 - SPA atual + API Node.js 24 LTS/Fastify 5 em processo persistente.
 - SQLite em volume durável para dados administrativos de uma instância; IndexedDB para rascunhos e blobs anônimos.
-- Adaptador fake de IA para desenvolvimento/testes; OpenAI Responses API é candidato recomendado, sem provedor real/chave aprovada.
+- Adaptador fake de IA para desenvolvimento/testes; OpenAI Responses API e Gemini `generateContent` estão disponíveis como integrações server-side opcionais para desenvolvimento local, sem aprovação para tráfego público.
 - Playwright/Chromium para PDF; biblioteca `docx` para DOCX; serializador próprio para Markdown.
 - Conteúdo de relatório em texto simples com quebras de linha; sem HTML livre. Templates HTML/CSS de PDF são restritos e não executáveis.
 - Hospedagem e ativação de IA real continuam bloqueadas pela validação do proprietário e pelo ambiente de deploy.
@@ -86,7 +86,7 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 
 ### Etapa 2 — `feat(api): criar contratos seguros e integracao de servidor`
 
-**Status:** Implementada como API local de protótipo. A integração OpenAI é opcional e permanece desativada por padrão; a implantação pública e decisões pendentes de produção continuam fora do escopo desta etapa.
+**Status:** Implementada como API local de protótipo. As integrações OpenAI e Gemini são opcionais e permanecem desativadas por padrão; a implantação pública e decisões pendentes de produção continuam fora do escopo desta etapa.
 
 **Objetivo funcional:** Disponibilizar a camada de servidor escolhida para IA, persistência administrativa e exportação, isolando segredos e validando entradas.
 
@@ -104,7 +104,7 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 - Falhas/limites de provedor não retornam sucesso falso nem relatório incompleto sem indicação.
 - Configuração e deploy local estão documentados; `AGENTS.md`, `README.md` e graphify refletem a estrutura real.
 
-**Entrega realizada:** API Fastify em `api/`, SQLite para conta/sessões/templates, adaptador fake + Responses API configurável, templates PDF com allowlist, exportadores PDF/DOCX/Markdown, upload de imagens transitório, rate limit, configuração em `.env.example` e testes em `tests/api/api.test.js`.
+**Entrega realizada:** API Fastify em `api/`, SQLite para conta/sessões/templates, adaptadores fake/OpenAI/Gemini configuráveis, templates PDF com allowlist, exportadores PDF/DOCX/Markdown, upload de imagens transitório, rate limit, configuração em `.env.example` e testes em `tests/api/api.test.js`.
 
 **Prompt copiável:**  
 > Implemente a camada de servidor e os contratos do MVP conforme as decisões registradas na Etapa 1 de `plan.md`. Centralize validação e tratamento de erros, mantenha credenciais exclusivamente no servidor e proteja endpoints públicos contra abuso. Não altere o escopo do produto. Atualize `.env.example`, `AGENTS.md`, `README.md` e graphify conforme as convenções do `AGENTS.md`. Adicione testes focados para validação e falhas do serviço.

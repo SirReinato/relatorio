@@ -116,14 +116,130 @@ async function openAiJson({ apiKey, model, input, schema, name, timeoutMs, maxOu
   }
 }
 
+function toGeminiSchema(schema) {
+  const types = {
+    object: 'OBJECT',
+    array: 'ARRAY',
+    string: 'STRING',
+    integer: 'INTEGER',
+    number: 'NUMBER',
+    boolean: 'BOOLEAN',
+  };
+  const result = {};
+  if (schema.type) result.type = types[schema.type];
+  if (schema.properties) {
+    result.properties = Object.fromEntries(
+      Object.entries(schema.properties).map(([key, value]) => [key, toGeminiSchema(value)]),
+    );
+  }
+  if (schema.required) result.required = schema.required;
+  if (schema.items) result.items = toGeminiSchema(schema.items);
+  return result;
+}
+
+function geminiOutputText(response) {
+  return response.candidates?.[0]?.content?.parts
+    ?.filter((part) => typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('') || '';
+}
+
+async function geminiJson({ apiKey, model, input, schema, timeoutMs, maxOutputTokens }) {
+  const systemInstruction = input
+    .filter((item) => item.role === 'developer')
+    .map((item) => item.content)
+    .join('\n');
+  const contents = input
+    .filter((item) => item.role !== 'developer')
+    .map((item) => ({
+      role: item.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: item.content }],
+    }));
+  const modelName = model.replace(/^models\//, '');
+
+  let response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'content-type': 'application/json',
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+        body: JSON.stringify({
+          ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
+          contents,
+          generationConfig: {
+            maxOutputTokens,
+            responseMimeType: 'application/json',
+            responseSchema: toGeminiSchema(schema),
+          },
+        }),
+      },
+    );
+  } catch (error) {
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+      throw new ApiError(504, 'AI_TIMEOUT', 'A geração excedeu o tempo limite.', { retryable: true });
+    }
+    throw new ApiError(503, 'AI_UNAVAILABLE', 'O serviço de geração está indisponível.', { retryable: true });
+  }
+
+  if (!response.ok) {
+    const retryable = response.status === 429 || response.status >= 500;
+    throw new ApiError(
+      retryable ? 503 : 502,
+      retryable ? 'AI_UNAVAILABLE' : 'AI_PROVIDER_ERROR',
+      retryable ? 'O serviço de geração está indisponível.' : 'O serviço de geração não aceitou a solicitação.',
+      { retryable },
+    );
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new ApiError(502, 'AI_INVALID_RESPONSE', 'O serviço de geração retornou uma resposta inválida.');
+  }
+
+  if (result.promptFeedback?.blockReason) {
+    throw new ApiError(502, 'AI_PROVIDER_REJECTED', 'O serviço de geração não pôde atender à solicitação.');
+  }
+  const candidate = result.candidates?.[0];
+  if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+    throw new ApiError(502, 'AI_INCOMPLETE_RESPONSE', 'A geração foi interrompida antes de ser concluída.');
+  }
+
+  try {
+    return JSON.parse(geminiOutputText(result));
+  } catch {
+    throw new ApiError(502, 'AI_INVALID_RESPONSE', 'O serviço de geração retornou conteúdo fora do formato esperado.');
+  }
+}
+
+function providerJson(config, options) {
+  if (config.aiProvider === 'gemini') {
+    return geminiJson({
+      ...options,
+      apiKey: config.geminiApiKey,
+      model: config.geminiModel,
+      timeoutMs: config.aiTimeoutMs,
+    });
+  }
+  return openAiJson({
+    ...options,
+    apiKey: config.openAiApiKey,
+    model: config.openAiModel,
+    timeoutMs: config.aiTimeoutMs,
+  });
+}
+
 export function createAiService(config) {
   async function generate(input) {
     if (config.aiProvider === 'fake') return fakeReport(input);
 
-    const report = await openAiJson({
-      apiKey: config.openAiApiKey,
-      model: config.openAiModel,
-      timeoutMs: config.aiTimeoutMs,
+    const report = await providerJson(config, {
       name: 'report_draft',
       schema: REPORT_OUTPUT_SCHEMA,
       maxOutputTokens: 6000,
@@ -184,10 +300,7 @@ export function createAiService(config) {
         },
       },
     };
-    const proposal = await openAiJson({
-      apiKey: config.openAiApiKey,
-      model: config.openAiModel,
-      timeoutMs: config.aiTimeoutMs,
+    const proposal = await providerJson(config, {
       name: 'section_proposal',
       schema,
       maxOutputTokens: 2000,

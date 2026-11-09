@@ -217,20 +217,25 @@ export async function createApi(options = {}) {
     databasePath: options.databasePath || process.env.DATABASE_PATH || './data/relatorio.sqlite',
     adminUsername: options.adminUsername ?? process.env.ADMIN_INITIAL_USERNAME,
     adminPassword: options.adminPassword ?? process.env.ADMIN_INITIAL_PASSWORD,
-    aiProvider: options.aiProvider || process.env.AI_PROVIDER || 'fake',
+    aiProvider: (options.aiProvider || process.env.AI_PROVIDER || 'fake').trim().toLowerCase(),
     openAiApiKey: options.openAiApiKey ?? process.env.OPENAI_API_KEY,
     openAiModel: options.openAiModel || process.env.OPENAI_MODEL || 'gpt-5-mini',
+    geminiApiKey: options.geminiApiKey ?? process.env.GEMINI_API_KEY,
+    geminiModel: options.geminiModel || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
     aiTimeoutMs: options.aiTimeoutMs || 90000,
     appOrigin: options.appOrigin || process.env.APP_ORIGIN || '',
     secureCookies: options.secureCookies ?? process.env.NODE_ENV === 'production',
     logger: options.logger ?? process.env.NODE_ENV === 'production',
   };
 
-  if (!['fake', 'openai'].includes(config.aiProvider)) {
-    throw new ApiError(500, 'INVALID_CONFIGURATION', 'AI_PROVIDER deve ser fake ou openai.');
+  if (!['fake', 'openai', 'gemini'].includes(config.aiProvider)) {
+    throw new ApiError(500, 'INVALID_CONFIGURATION', 'AI_PROVIDER deve ser fake, openai ou gemini.');
   }
   if (config.aiProvider === 'openai' && !config.openAiApiKey) {
     throw new ApiError(500, 'AI_CONFIGURATION_REQUIRED', 'OPENAI_API_KEY é obrigatória quando AI_PROVIDER=openai.');
+  }
+  if (config.aiProvider === 'gemini' && !config.geminiApiKey) {
+    throw new ApiError(500, 'AI_CONFIGURATION_REQUIRED', 'GEMINI_API_KEY é obrigatória quando AI_PROVIDER=gemini.');
   }
 
   const database = await createDatabase({
