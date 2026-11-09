@@ -244,7 +244,7 @@ meu-projeto/
 ├── README.md                  # Apresentação do projeto e instruções de uso humano
 ├── package.json               # Dependências, scripts e metadados
 ├── vite.config.js             # Configuração do Vite e plugins
-├── playwright.config.js       # Configuração do Playwright (baseURL, Chromium headless, webServer)
+├── playwright.config.js       # Playwright: Chromium headless, webServer e saída na iniciativa
 ├── eslint.config.js           # Regras do ESLint
 ├── .gitignore                 # Arquivos ignorados pelo Git (node_modules, .env.local, dist, test-results)
 ├── .env.example               # Template público de variáveis de ambiente
@@ -254,7 +254,7 @@ meu-projeto/
 │   ├── api/
 │   │   └── api.test.js        # Contratos, sessão admin, templates, arquivos e exportação
 │   └── e2e/
-│       └── rotas.spec.js      # Validação funcional inicial: carregamento da casca mestre e rotas
+│       └── rotas.spec.js      # Landing, modal, modelos publicados, rotas e acesso administrativo
 └── src/
     ├── main.jsx (ou .tsx)     # Bootstrap da aplicação: ThemeProvider + GlobalStyled + App
     ├── App.jsx (ou .tsx)      # Provedores globais e renderização de AppRoutes
@@ -262,22 +262,27 @@ meu-projeto/
     ├── routes/
     │   └── AppRoutes.jsx      # Definição das rotas com <BrowserRouter>:
     │                          #  - Rota de layout mestre (<MainGeral /> com Header e Footer fixos)
-    │                          #  - Rota index (<Home />) renderizada dentro da <Outlet />
+    │                          #  - Home, início de relatório e acesso administrativo
     │
-    ├── pages/                 # Páginas da aplicação (uma pasta por tela com index.jsx)
-    │   ├── Outlet/            # Layout principal (MainGeral): Header + <Outlet /> + Footer fixos
-    │   │   └── index.jsx
-    │   └── Home/              # Página inicial genérica (placeholder estrutural neutro)
-    │       └── index.jsx
+    ├── components/
+    │   └── StartReportModal/  # Modal acessível para modalidade, formatos e modelos PDF
+    │       ├── index.jsx
+    │       └── styles.js
+    ├── pages/                 # Páginas da aplicação (uma pasta por tela)
+    │   ├── AdminArea/         # Área inicial protegida pela sessão administrativa
+    │   ├── AdminLogin/        # Login conectado à sessão da API
+    │   ├── Home/              # Landing page e início do fluxo
+    │   ├── Outlet/            # Layout mestre: Header + <Outlet /> + Footer
+    │   └── RelatorioNovo/     # Resumo das escolhas; editor fica para a Etapa 4
+    ├── services/
+    │   └── api.js             # Cliente same-origin para modelos e sessão administrativa
     │
     ├── themes/                # Configuração central de design system e estilos globais
     │   ├── GlobalStyled.jsx   # Reset CSS completo e estilos base via createGlobalStyle
     │   └── theme.jsx (ou .tsx)# Objeto de tema (cores, 3 botões, tipografia, 2 gradientes)
     │
-    ├── components/            # Componentes visuais reutilizáveis (botões, cards, modais, etc.)
     ├── hooks/                 # Custom React Hooks para lógicas de estado e side-effects
     ├── context/               # React Contexts para gerenciamento de estado global compartilhado
-    ├── services/              # Camada de comunicação com APIs externas, HTTP clients ou SDKs
     └── utils/                 # Funções utilitárias puras (formatação, cálculos, validações)
 ```
 
@@ -683,3 +688,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-09 | GitHub Copilot | Ajuste da regra de organização em `00-anything/` para agrupar artefatos por iniciativa e evitar pastas redundantes para brainstorm, draft, review e arquitetura da mesma demanda. |
 | 2026-11-09 | GitHub Copilot | Implementação da API de protótipo SIR-68 Etapa 2: Fastify, SQLite, sessão admin, contratos, adaptador de IA, templates restritos, exportadores, limites, testes e documentação de configuração. |
 | 2026-11-09 | GitHub Copilot | Inclusão do adaptador server-side Gemini `generateContent`, configuração dedicada `GEMINI_API_KEY`/`GEMINI_MODEL`, validação estruturada, testes de falha/segredo e documentação da integração opcional. |
+| 2026-11-09 | GitHub Copilot | Implementação da Etapa 3: landing responsiva, modal nativa acessível, seleção de formatos/modelos publicados, rotas de início e administração, login por sessão e testes E2E. |

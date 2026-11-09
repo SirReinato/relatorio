@@ -36,6 +36,7 @@ dist-ssr
 
 # Playwright
 /test-results/
+/00-anything/02 - gerador de relatorios 2026-11-09/test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
