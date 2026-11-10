@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import AdminTemplateManager from '../../components/AdminTemplateManager/index.jsx';
 import { fetchAdminTemplates, logoutAdmin } from '../../services/api.js';
 
 const ConteudoAdminStl = styled.section`
@@ -30,22 +31,6 @@ const TituloAdminStl = styled.h1`
 
 const TextoAdminStl = styled.p`
   color: ${({ theme }) => theme.colors.textSecondary};
-`;
-
-const ListaModelosStl = styled.ul`
-  display: grid;
-  gap: ${({ theme }) => theme.spacing.sm};
-  padding: 0;
-  list-style: none;
-
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: ${({ theme }) => theme.spacing.md};
-    padding: ${({ theme }) => theme.spacing.md};
-    background: ${({ theme }) => theme.colors.surfaceAlt};
-    border-radius: ${({ theme }) => theme.borderRadius.md};
-  }
 `;
 
 const AcoesAdminStl = styled.div`
@@ -79,6 +64,7 @@ export default function AdminArea() {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [retryCount, setRetryCount] = useState(0);
@@ -86,12 +72,17 @@ export default function AdminArea() {
 
   useEffect(() => {
     let isCurrent = true;
-    setIsLoading(true);
     setErrorMessage('');
     setIsUnauthorized(false);
     fetchAdminTemplates()
       .then((result) => {
-        if (isCurrent) setTemplates(result.templates);
+        if (!Array.isArray(result.templates)) {
+          throw new Error('A API retornou uma lista de modelos inválida.');
+        }
+        if (isCurrent) {
+          setTemplates(result.templates);
+          setHasLoaded(true);
+        }
       })
       .catch((error) => {
         if (!isCurrent) return;
@@ -110,6 +101,17 @@ export default function AdminArea() {
   }, [retryCount]);
 
   if (isUnauthorized) return <Navigate to="/admin/login" replace />;
+  if (isLoading) {
+    return (
+      <ConteudoAdminStl data-testid="pagina-admin" role="status">
+        <MensagemAdminStl>Verificando sessão administrativa…</MensagemAdminStl>
+      </ConteudoAdminStl>
+    );
+  }
+
+  function handleUnauthorized() {
+    setIsUnauthorized(true);
+  }
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -136,33 +138,11 @@ export default function AdminArea() {
           {isLoggingOut ? 'Saindo…' : 'Sair'}
         </BotaoAdminStl>
       </CabecalhoAdminStl>
-      <TextoAdminStl>
-        Acesso autenticado. A edição e publicação de modelos PDF serão ampliadas na etapa de administração.
-      </TextoAdminStl>
-      {isLoading && <MensagemAdminStl role="status">Verificando sessão…</MensagemAdminStl>}
+      <TextoAdminStl>Acesso autenticado. Administre modelos PDF publicados e inativos.</TextoAdminStl>
       {errorMessage && (
         <MensagemAdminStl role="alert" $isError>
           {errorMessage}
         </MensagemAdminStl>
-      )}
-      {!isLoading && !errorMessage && (
-        <>
-          <TextoAdminStl>
-            {templates.length
-              ? `${templates.length} modelo(s) PDF encontrado(s).`
-              : 'Nenhum modelo PDF cadastrado.'}
-          </TextoAdminStl>
-          {templates.length > 0 && (
-            <ListaModelosStl aria-label="Modelos PDF cadastrados">
-              {templates.map((template) => (
-                <li key={template.id}>
-                  <span>{template.name}</span>
-                  <span>{template.status === 'published' ? 'Publicado' : 'Rascunho'}</span>
-                </li>
-              ))}
-            </ListaModelosStl>
-          )}
-        </>
       )}
       {errorMessage && (
         <AcoesAdminStl>
@@ -171,6 +151,13 @@ export default function AdminArea() {
           </BotaoAdminStl>
           <LinkAdminStl to="/">Voltar para o início</LinkAdminStl>
         </AcoesAdminStl>
+      )}
+      {(!errorMessage || hasLoaded) && (
+        <AdminTemplateManager
+          templates={templates}
+          onTemplatesChanged={() => setRetryCount((current) => current + 1)}
+          onUnauthorized={handleUnauthorized}
+        />
       )}
     </ConteudoAdminStl>
   );

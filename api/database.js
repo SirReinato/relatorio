@@ -141,6 +141,7 @@ export async function createDatabase({ path, adminUsername, adminPassword }) {
     setTemplateStatus: (id, status, now) => db.prepare(`
       UPDATE pdf_templates SET status = ?, version = version + 1, updated_at = ? WHERE id = ?
     `).run(status, now, id),
+    deleteTemplate: (id) => db.prepare('DELETE FROM pdf_templates WHERE id = ?').run(id),
     recordAdminEvent: (type, resourceId) => db.prepare(
       'INSERT INTO admin_events (event_type, resource_id, created_at) VALUES (?, ?, ?)',
     ).run(type, resourceId, new Date().toISOString()),

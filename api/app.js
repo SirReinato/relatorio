@@ -455,6 +455,21 @@ export async function createApi(options = {}) {
     return templateRecord(database.getTemplate(template.id));
   });
 
+  app.delete('/api/v1/admin/templates/:id', {
+    schema: { params: TEMPLATE_PARAMS_SCHEMA },
+    preHandler: requireAdmin,
+  }, async (request) => {
+    const template = database.getTemplate(request.params.id);
+    if (!template) throw new ApiError(404, 'TEMPLATE_NOT_FOUND', 'Modelo PDF não encontrado.');
+    if (template.status !== 'draft') {
+      throw new ApiError(409, 'TEMPLATE_MUST_BE_DRAFT', 'Despublique o modelo antes de excluí-lo.');
+    }
+
+    database.deleteTemplate(template.id);
+    database.recordAdminEvent('template.deleted', template.id);
+    return { deleted: true, id: template.id };
+  });
+
   app.post('/api/v1/admin/templates/:id/preview', {
     schema: { params: TEMPLATE_PARAMS_SCHEMA },
     preHandler: requireAdmin,

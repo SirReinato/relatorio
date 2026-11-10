@@ -207,6 +207,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 **Prompt copiável:**  
 > Implemente a área de autenticação exclusiva do administrador e o CRUD de modelos visuais para PDF conforme Etapa 6 de `plan.md`. Use a autenticação de servidor decidida na Etapa 1; proteja rotas e endpoints, sem credenciais no frontend. Aceite HTML/CSS restritos sem JavaScript executável, com prévia isolada e sanitização. Faça modelos publicados aparecerem no fluxo público. Atualize documentação, graphify e testes funcionais de permissão.
 
+**Entrega realizada (2026-11-10):** A sessão existente protege a área e os endpoints administrativos; `/admin` mantém o gerenciador montado durante atualizações para não descartar o formulário em edição. O CRUD permite criar/editar rascunhos, gerar prévia PDF com dados fictícios em `iframe sandbox`, publicar/despublicar e excluir somente rascunhos. O servidor aplica os contratos e a allowlist HTML/CSS já definidos; o seletor público lista apenas modelos publicados. Testes API e E2E cobrem autorização, fluxo CRUD, prévia, publicação e reflexo no seletor.
+
 ### Etapa 7 — `feat(exportacao): exportar pdf docx e markdown`
 
 **Objetivo funcional:** Gerar todos os formatos selecionados a partir da mesma versão revisada do relatório, aplicando o modelo do admin ao PDF.
