@@ -77,10 +77,10 @@ test.describe('Landing page e início do relatório', () => {
     await dialog.getByRole('button', { name: 'Continuar' }).click();
 
     await expect(page).toHaveURL('/relatorios/novo');
-    await expect(page.getByTestId('pagina-novo-relatorio')).toBeVisible();
-    await expect(page.getByText('Começar com IA')).toBeVisible();
-    await expect(page.getByTestId('formatos-selecionados')).toHaveText('PDF, DOCX, Markdown');
-    await expect(page.getByTestId('modelo-selecionado')).toHaveText('Modelo publicado');
+    await expect(page.getByTestId('formulario-geracao-ia')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Começar com IA' })).toBeVisible();
+    await expect(page.getByTestId('formulario-geracao-ia')).toContainText('Formatos: PDF, DOCX, Markdown.');
+    await expect(page.getByTestId('formulario-geracao-ia')).toContainText('Modelo PDF: Modelo publicado.');
   });
 
   test('permite continuar sem formatos ou modelos publicados', async ({ page }) => {
@@ -214,6 +214,218 @@ test.describe('Landing page e início do relatório', () => {
     await dialog.getByRole('button', { name: 'Tentar novamente' }).click();
     await expect(dialog.getByLabel('Modelo de PDF')).toHaveValue('system-default');
     await expect(dialog.getByRole('alert')).toHaveCount(0);
+  });
+});
+
+test.describe('Geração e regeneração com IA', () => {
+  test('gera um rascunho validado, preserva escolhas e abre o editor comum', async ({ page }) => {
+    let generationInput;
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: publishedTemplates }));
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      generationInput = route.request().postDataJSON();
+      await fulfillJson(route, 200, {
+        schemaVersion: 1,
+        id: '98cb61d8-6e77-4bdb-8fe8-6028279bcd45',
+        title: 'Relatório de energia solar',
+        topic: generationInput.topic,
+        brief: generationInput.brief,
+        sections: [{
+          id: '5dc4ec45-fcc6-42fb-8b5a-1178575ab935',
+          title: 'Visão geral',
+          body: 'Conteúdo inicial gerado.',
+          importantDetails: ['Revisar as fontes.'],
+          images: [],
+        }],
+        selectedFormats: ['pdf'],
+        pdfTemplateId: 'system-default',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Começar com IA/ }).check();
+    await dialog.getByRole('checkbox', { name: 'DOCX' }).check();
+    await dialog.getByLabel('Modelo de PDF').selectOption('modelo-publicado');
+    await dialog.getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page.getByTestId('formulario-geracao-ia')).toBeVisible();
+    await page.getByLabel('Tema para geração').fill('Energia solar no Brasil');
+    await page.getByLabel('Objetivo da geração').fill('Apresentar oportunidades e desafios.');
+    await page.getByLabel('Público-alvo da geração').fill('Gestores públicos');
+    await page.getByLabel('Extensão desejada para geração').selectOption('short');
+    await page.getByLabel('Tom da geração').fill('Informativo');
+    await page.getByLabel('Referências da geração').fill('https://example.test/energia');
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+
+    await expect(page).toHaveURL(/\/relatorios\/novo\/98cb61d8-6e77-4bdb-8fe8-6028279bcd45$/);
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório de energia solar');
+    await expect(page.getByLabel('Tema do relatório')).toHaveValue('Energia solar no Brasil');
+    await expect(page.getByLabel('Formato PDF')).toBeChecked();
+    await expect(page.getByLabel('Formato DOCX')).toBeChecked();
+    await expect(page.getByTestId('modelo-pdf')).toContainText('modelo-publicado');
+    await expect(page.getByLabel('Conteúdo da seção 1')).toHaveValue('Conteúdo inicial gerado.');
+    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador');
+    expect(generationInput).toEqual({
+      topic: 'Energia solar no Brasil',
+      brief: {
+        objective: 'Apresentar oportunidades e desafios.',
+        audience: 'Gestores públicos',
+        desiredLength: 'short',
+        tone: 'Informativo',
+        references: ['https://example.test/energia'],
+      },
+    });
+  });
+
+  test('cancela a geração em andamento sem limpar os parâmetros', async ({ page }) => {
+    let requestStarted;
+    let finishRequest;
+    const requestStartedPromise = new Promise((resolve) => { requestStarted = resolve; });
+    const requestGate = new Promise((resolve) => { finishRequest = resolve; });
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      requestStarted();
+      await requestGate;
+      try {
+        await fulfillJson(route, 200, {});
+      } catch {
+        // The browser may have already aborted the request.
+      }
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await page.getByRole('dialog').getByRole('radio', { name: /Começar com IA/ }).check();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel('Tema para geração').fill('Tema que deve permanecer');
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+    await requestStartedPromise;
+    await page.getByRole('button', { name: 'Cancelar geração' }).click();
+    await expect(page.getByRole('status')).toContainText('Geração cancelada.');
+    await expect(page.getByLabel('Tema para geração')).toHaveValue('Tema que deve permanecer');
+    finishRequest();
+  });
+
+  test('mostra falha de geração, mantém os parâmetros e permite retry', async ({ page }) => {
+    let attempts = 0;
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: publishedTemplates }));
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      attempts += 1;
+      if (attempts === 1) {
+        await fulfillJson(route, 503, {
+          error: { code: 'AI_UNAVAILABLE', message: 'Serviço de IA temporariamente indisponível.', retryable: true },
+        });
+        return;
+      }
+      const input = route.request().postDataJSON();
+      if (attempts === 2) {
+        await fulfillJson(route, 200, {
+          schemaVersion: 1,
+          id: 'f9f1aef6-d6d7-46e8-92a1-36bea15df120',
+          title: 'Relatório incompleto',
+          topic: input.topic,
+          brief: input.brief,
+          sections: [],
+          selectedFormats: ['pdf'],
+          pdfTemplateId: null,
+          updatedAt: new Date().toISOString(),
+        });
+        return;
+      }
+      await fulfillJson(route, 200, {
+        schemaVersion: 1,
+        id: 'f9f1aef6-d6d7-46e8-92a1-36bea15df120',
+        title: 'Relatório resiliente',
+        topic: input.topic,
+        brief: input.brief,
+        sections: [{
+          id: '0cac9ddc-7763-4896-ae15-fb418d7ea1c4',
+          title: 'Visão geral',
+          body: 'Rascunho após retry.',
+          importantDetails: [],
+          images: [],
+        }],
+        selectedFormats: ['pdf'],
+        pdfTemplateId: 'system-default',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await page.getByRole('dialog').getByRole('radio', { name: /Começar com IA/ }).check();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+
+    await page.getByLabel('Tema para geração').fill('Relatório resiliente');
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+    await expect(page.getByRole('alert')).toContainText('Serviço de IA temporariamente indisponível.');
+    await expect(page.getByLabel('Tema para geração')).toHaveValue('Relatório resiliente');
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(page.getByRole('alert')).toContainText('fora do contrato esperado');
+    await expect(page.getByLabel('Tema para geração')).toHaveValue('Relatório resiliente');
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    expect(attempts).toBe(3);
+  });
+
+  test('regenera uma seção sem tocar nas demais ou remover imagens e descarta respostas obsoletas', async ({ page }) => {
+    let requestCount = 0;
+    let releaseFirstResponse;
+    let firstRequestArrived;
+    const firstRequest = new Promise((resolve) => { firstRequestArrived = resolve; });
+    const firstResponseGate = new Promise((resolve) => { releaseFirstResponse = resolve; });
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: [] }));
+    await page.route('**/api/v1/ai/sections/regenerate', async (route) => {
+      requestCount += 1;
+      const input = route.request().postDataJSON();
+      expect(input.targetSection).not.toHaveProperty('images');
+      if (requestCount === 1) {
+        firstRequestArrived();
+        await firstResponseGate;
+      }
+      await fulfillJson(route, 200, {
+        sectionId: input.targetSection.id,
+        clientRevision: input.targetSection.clientRevision,
+        proposal: {
+          title: 'Título revisado pela IA',
+          body: 'Texto atualizado pela proposta.',
+          importantDetails: ['Novo dado importante.'],
+        },
+      });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel('Título do relatório').fill('Rascunho com regeneração');
+    await page.getByLabel('Tema do relatório').fill('Tema para a regeneração');
+    await page.getByLabel('Título da seção 1').fill('Seção de contexto');
+    await page.getByLabel('Conteúdo da seção 1').fill('Texto que será editado durante a chamada.');
+    await page.locator('[aria-label="Adicionar imagem à seção 1"]').setInputFiles({
+      name: 'anexo.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWPgUbIAAACkAGfNzc0uAAAAAElFTkSuQmCC', 'base64'),
+    });
+    await page.getByLabel('Legenda da imagem anexo.png').fill('Legenda que deve permanecer');
+    await page.getByRole('button', { name: 'Adicionar seção' }).click();
+    await page.getByLabel('Título da seção 2').fill('Outra seção');
+    await page.getByLabel('Conteúdo da seção 2').fill('Conteúdo independente.');
+
+    await page.getByRole('button', { name: 'Regenerar seção com IA' }).first().click();
+    await firstRequest;
+    await page.getByLabel('Conteúdo da seção 1').fill('Edição manual mais recente.');
+    releaseFirstResponse();
+    await expect(page.getByRole('alert')).toContainText('A seção mudou durante a geração');
+    await expect(page.getByLabel('Conteúdo da seção 1')).toHaveValue('Edição manual mais recente.');
+
+    await page.getByRole('button', { name: 'Regenerar seção com IA' }).first().click();
+    await expect(page.getByLabel('Proposta para seção 1')).toBeVisible();
+    await page.getByRole('button', { name: 'Aplicar proposta' }).click();
+    await expect(page.getByLabel('Título da seção 1')).toHaveValue('Título revisado pela IA');
+    await expect(page.getByLabel('Conteúdo da seção 1')).toHaveValue('Texto atualizado pela proposta.');
+    await expect(page.getByLabel('Legenda da imagem anexo.png')).toHaveValue('Legenda que deve permanecer');
+    await expect(page.getByLabel('Título da seção 2')).toHaveValue('Outra seção');
+    await expect(page.getByLabel('Conteúdo da seção 2')).toHaveValue('Conteúdo independente.');
+    expect(requestCount).toBe(2);
   });
 });
 

@@ -179,6 +179,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 - Regenerar uma seção não altera as outras seções nem elimina imagens/legendas anexadas.
 - Testes cobrem respostas válidas, falhas e preservação do conteúdo existente; integração usa credencial somente no servidor.
 
+**Entrega realizada (2026-11-10):** Formulário da modalidade IA conectado a `POST /api/v1/ai/reports`, com tema e parâmetros opcionais, indicador de progresso, cancelamento, erro/retry e validação estrita do `ReportDraft` no cliente. Rascunhos válidos recebem as escolhas de formato/modelo da modal e são persistidos no IndexedDB; se a gravação falhar, o conteúdo segue para o editor em memória com erro visível. O editor compartilhado oferece regeneração por seção em `POST /api/v1/ai/sections/regenerate`, envia somente contexto textual, valida a proposta, permite aceitar/descartar e ignora respostas obsoletas quando a seção muda durante a chamada. Aplicar altera apenas título/conteúdo/detalhes da seção alvo, preservando imagens/legendas e demais seções. Cancelamento de desconexão propaga do Fastify ao fetch do provedor. Cobertura adicionada para sucesso, erros/retry, resposta inválida, cancelamento e preservação concorrente; integração real continua dependente de configuração server-side e não foi validada com credenciais reais.
+
 **Prompt copiável:**  
 > Conecte o fluxo de geração por IA aos contratos da Etapa 2 e ao editor da Etapa 4. Gere relatório estruturado em português do Brasil por padrão, valide a resposta, trate limites/timeout/erro explicitamente e permita regenerar uma seção sem tocar nas demais alterações ou imagens. A chave do provedor fica exclusivamente no servidor. Siga `AGENTS.md` e teste respostas inválidas e preservação do conteúdo.
 
