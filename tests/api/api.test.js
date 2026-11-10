@@ -126,8 +126,33 @@ describe('API do protótipo', () => {
       payload: {
         name: 'Modelo simples',
         description: '',
-        html: '<h1>{{report.title}}</h1>{{report.sections}}',
-        css: 'h1 { color: #172033; }',
+        html: `<div class="page-container">
+<header class="report-header">
+  <div class="accent-bar"></div>
+  <div class="header-content">
+    <h1 class="report-title">{{report.title}}</h1>
+    <p class="report-topic">{{report.topic}}</p>
+  </div>
+</header>
+<main class="report-body">{{report.sections}}</main>
+</div>`,
+        css: `@page { margin: 18mm 15mm; size: A4 portrait; }
+* { box-sizing: border-box; }
+body { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; color: #202734; background-color: #ffffff; line-height: 1.6; font-size: 11pt; margin: 0; padding: 0; }
+.page-container { width: 100%; }
+.report-header { border-bottom: 2px solid #36415A; padding-bottom: 14px; margin-bottom: 24px; }
+.accent-bar { width: 48px; height: 4px; background-color: #B7D894; margin-bottom: 12px; border-radius: 2px; }
+.report-title { color: #202734; font-size: 22pt; font-weight: 700; margin: 0 0 6px 0; letter-spacing: -0.5px; line-height: 1.2; }
+.report-topic { color: #36415A; font-size: 11pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin: 0; }
+.report-body { margin-top: 10px; }
+h2 { color: #202734; font-size: 14pt; border-left: 4px solid #B7D894; padding-left: 10px; margin-top: 24px; margin-bottom: 10px; page-break-after: avoid; }
+h3 { color: #36415A; font-size: 12pt; margin-top: 16px; margin-bottom: 6px; page-break-after: avoid; }
+p { margin: 0 0 10px 0; text-align: justify; }
+blockquote, .highlight-box { background-color: #E0F8C7; border-left: 4px solid #36415A; color: #202734; padding: 10px 14px; margin: 14px 0; border-radius: 0 4px 4px 0; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
+th { background-color: #36415A; color: #ffffff; font-weight: 600; text-align: left; padding: 8px 10px; }
+td { border-bottom: 1px solid #E0F8C7; padding: 8px 10px; color: #202734; }
+tr:nth-child(even) td { background-color: #f7fbf3; }`,
       },
     });
     assert.equal(create.statusCode, 201);
@@ -252,6 +277,10 @@ describe('API do protótipo', () => {
     assert.throws(() => sanitizeTemplate({
       ...systemTemplate,
       css: 'body { background-color: url(https://example.invalid/image.png); }',
+    }), { code: 'INVALID_TEMPLATE' });
+    assert.throws(() => sanitizeTemplate({
+      ...systemTemplate,
+      css: '@import url(https://example.invalid/template.css);',
     }), { code: 'INVALID_TEMPLATE' });
   });
 

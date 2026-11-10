@@ -11,16 +11,19 @@ const MAX_IMAGE_PIXELS = 12_000_000;
 const MAX_IMAGE_DIMENSION = 5000;
 const MAX_CONCURRENT_PDF_JOBS = 2;
 let activePdfJobs = 0;
+const ALLOWED_PAGE_CSS_PROPERTIES = new Set(['margin', 'size']);
 const ALLOWED_CSS_PROPERTIES = new Set([
   'background-color',
   'border',
   'border-bottom',
+  'border-left',
   'border-collapse',
   'border-color',
   'border-radius',
   'border-spacing',
   'border-style',
   'border-width',
+  'box-sizing',
   'color',
   'display',
   'font-family',
@@ -28,6 +31,7 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'font-style',
   'font-weight',
   'height',
+  'letter-spacing',
   'line-height',
   'margin',
   'margin-bottom',
@@ -35,18 +39,32 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'max-width',
   'padding',
   'padding-bottom',
+  'padding-left',
   'padding-top',
+  'page-break-after',
   'text-align',
+  'text-transform',
   'vertical-align',
   'white-space',
   'width',
 ]);
 const ALLOWED_TAGS = [
   'blockquote', 'br', 'caption', 'dd', 'div', 'dl', 'dt', 'em', 'figcaption',
-  'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'li', 'ol', 'p',
-  'section', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td',
-  'th', 'thead', 'tr', 'u', 'ul',
+  'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main',
+  'ol', 'p', 'section', 'small', 'span', 'strong', 'sub', 'sup', 'table',
+  'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul',
 ];
+const ALLOWED_CSS_TAG_SELECTORS = new Set([...ALLOWED_TAGS, 'body']);
+
+function isAllowedCssSelector(selector) {
+  return selector.split(/\s+/).every((part) => {
+    const nthChildMatch = part.match(/^(.+):nth-child\((?:even|odd|\d+)\)$/i);
+    const base = nthChildMatch ? nthChildMatch[1] : part;
+    return base === '*'
+      || ALLOWED_CSS_TAG_SELECTORS.has(base.toLowerCase())
+      || /^[.#][a-zA-Z0-9_-]+$/.test(base);
+  });
+}
 
 export const systemTemplate = Object.freeze({
   id: 'system-default',
@@ -82,21 +100,35 @@ export function sanitizeTemplate(template) {
   let css;
   try {
     const root = postcss.parse(template.css);
-    root.walkAtRules(() => {
-      throw new ApiError(400, 'INVALID_TEMPLATE', 'Regras especiais de CSS não são permitidas.');
+    root.walkAtRules((atRule) => {
+      if (atRule.name.toLowerCase() !== 'page' || atRule.parent !== root || atRule.params.trim()) {
+        throw new ApiError(400, 'INVALID_TEMPLATE', 'Somente a regra @page sem modificadores é permitida.');
+      }
+      atRule.each((node) => {
+        if (node.type !== 'decl' && node.type !== 'comment') {
+          throw new ApiError(400, 'INVALID_TEMPLATE', 'A regra @page contém uma estrutura não permitida.');
+        }
+      });
     });
     root.walkRules((rule) => {
       const selectors = rule.selector.split(',').map((selector) => selector.trim());
-      if (selectors.some((selector) => !/^(?:body|h[1-6]|p|section|figure|figcaption|table|th|td|ul|ol|li|[.#][a-zA-Z0-9_-]+)$/.test(selector))) {
+      if (selectors.some((selector) => !isAllowedCssSelector(selector))) {
         throw new ApiError(400, 'INVALID_TEMPLATE', 'O CSS contém um seletor não permitido.');
       }
     });
     root.walkDecls((declaration) => {
       const value = declaration.value.toLowerCase();
+      const pageRule = declaration.parent.type === 'atrule';
+      const allowedProperties = pageRule ? ALLOWED_PAGE_CSS_PROPERTIES : ALLOWED_CSS_PROPERTIES;
       if (
-        !ALLOWED_CSS_PROPERTIES.has(declaration.prop.toLowerCase())
+        !allowedProperties.has(declaration.prop.toLowerCase())
         || /url\s*\(|expression\s*\(|javascript:|data:/i.test(value)
         || value.includes('\\')
+        || (
+          pageRule
+          && declaration.prop.toLowerCase() === 'size'
+          && !/^(?:a[0-6]|letter|legal|tabloid)(?:\s+(?:portrait|landscape))?$/i.test(value.trim())
+        )
       ) {
         throw new ApiError(400, 'INVALID_TEMPLATE', 'O CSS contém uma propriedade ou valor não permitido.');
       }
