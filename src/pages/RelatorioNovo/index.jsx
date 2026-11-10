@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 
 const ManualReportEditor = lazy(() => import('../../components/ManualReportEditor/index.jsx'));
+const ReportGenerationForm = lazy(() => import('../../components/ReportGenerationForm/index.jsx'));
 
 const formatLabels = {
   pdf: 'PDF',
@@ -78,10 +79,22 @@ export default function RelatorioNovo() {
   const { state } = useLocation();
   const { draftId: routeDraftId } = useParams();
   const draftId = state?.draftId || routeDraftId;
+  if (state?.mode === 'ai' && !draftId) {
+    return (
+      <Suspense fallback={<ConteudoInicioStl role="status">Preparando geração assistida…</ConteudoInicioStl>}>
+        <ReportGenerationForm configuration={state} />
+      </Suspense>
+    );
+  }
   if (state?.mode === 'manual' || draftId) {
     return (
       <Suspense fallback={<ConteudoInicioStl role="status">Abrindo o editor manual…</ConteudoInicioStl>}>
-        <ManualReportEditor configuration={state} draftId={draftId} />
+        <ManualReportEditor
+          configuration={state}
+          draftId={draftId}
+          initialDraft={state?.initialDraft}
+          initialSaveError={state?.initialSaveError}
+        />
       </Suspense>
     );
   }

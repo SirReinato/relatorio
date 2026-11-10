@@ -62,7 +62,12 @@ function outputText(response) {
   return chunks?.join('') || '';
 }
 
-async function openAiJson({ apiKey, model, input, schema, name, timeoutMs, maxOutputTokens }) {
+function aiRequestSignal(timeoutMs, signal) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal;
+}
+
+async function openAiJson({ apiKey, model, input, schema, name, timeoutMs, maxOutputTokens, signal }) {
   let response;
   try {
     response = await fetch('https://api.openai.com/v1/responses', {
@@ -71,7 +76,7 @@ async function openAiJson({ apiKey, model, input, schema, name, timeoutMs, maxOu
         authorization: `Bearer ${apiKey}`,
         'content-type': 'application/json',
       },
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: aiRequestSignal(timeoutMs, signal),
       body: JSON.stringify({
         model,
         max_output_tokens: maxOutputTokens,
@@ -82,6 +87,9 @@ async function openAiJson({ apiKey, model, input, schema, name, timeoutMs, maxOu
       }),
     });
   } catch (error) {
+    if (signal?.aborted) {
+      throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+    }
     if (error.name === 'TimeoutError' || error.name === 'AbortError') {
       throw new ApiError(504, 'AI_TIMEOUT', 'A geração excedeu o tempo limite.', { retryable: true });
     }
@@ -102,6 +110,9 @@ async function openAiJson({ apiKey, model, input, schema, name, timeoutMs, maxOu
   try {
     result = await response.json();
   } catch {
+    if (signal?.aborted) {
+      throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+    }
     throw new ApiError(502, 'AI_INVALID_RESPONSE', 'O serviço de geração retornou uma resposta inválida.');
   }
 
@@ -144,7 +155,7 @@ function geminiOutputText(response) {
     .join('') || '';
 }
 
-async function geminiJson({ apiKey, model, input, schema, timeoutMs, maxOutputTokens }) {
+async function geminiJson({ apiKey, model, input, schema, timeoutMs, maxOutputTokens, signal }) {
   const systemInstruction = input
     .filter((item) => item.role === 'developer')
     .map((item) => item.content)
@@ -167,7 +178,7 @@ async function geminiJson({ apiKey, model, input, schema, timeoutMs, maxOutputTo
           'x-goog-api-key': apiKey,
           'content-type': 'application/json',
         },
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: aiRequestSignal(timeoutMs, signal),
         body: JSON.stringify({
           ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
           contents,
@@ -180,6 +191,9 @@ async function geminiJson({ apiKey, model, input, schema, timeoutMs, maxOutputTo
       },
     );
   } catch (error) {
+    if (signal?.aborted) {
+      throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+    }
     if (error.name === 'TimeoutError' || error.name === 'AbortError') {
       throw new ApiError(504, 'AI_TIMEOUT', 'A geração excedeu o tempo limite.', { retryable: true });
     }
@@ -200,6 +214,9 @@ async function geminiJson({ apiKey, model, input, schema, timeoutMs, maxOutputTo
   try {
     result = await response.json();
   } catch {
+    if (signal?.aborted) {
+      throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+    }
     throw new ApiError(502, 'AI_INVALID_RESPONSE', 'O serviço de geração retornou uma resposta inválida.');
   }
 
@@ -225,6 +242,7 @@ function providerJson(config, options) {
       apiKey: config.geminiApiKey,
       model: config.geminiModel,
       timeoutMs: config.aiTimeoutMs,
+      signal: options.signal,
     });
   }
   return openAiJson({
@@ -232,17 +250,19 @@ function providerJson(config, options) {
     apiKey: config.openAiApiKey,
     model: config.openAiModel,
     timeoutMs: config.aiTimeoutMs,
+    signal: options.signal,
   });
 }
 
 export function createAiService(config) {
-  async function generate(input) {
+  async function generate(input, { signal } = {}) {
     if (config.aiProvider === 'fake') return fakeReport(input);
 
     const report = await providerJson(config, {
       name: 'report_draft',
       schema: REPORT_OUTPUT_SCHEMA,
       maxOutputTokens: 6000,
+      signal,
       input: [
         {
           role: 'developer',
@@ -273,7 +293,7 @@ export function createAiService(config) {
     return reportDraft;
   }
 
-  async function regenerateSection(input) {
+  async function regenerateSection(input, { signal } = {}) {
     if (config.aiProvider === 'fake') {
       return {
         sectionId: input.targetSection.id,
@@ -304,6 +324,7 @@ export function createAiService(config) {
       name: 'section_proposal',
       schema,
       maxOutputTokens: 2000,
+      signal,
       input: [
         {
           role: 'developer',

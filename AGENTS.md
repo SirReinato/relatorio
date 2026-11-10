@@ -138,7 +138,7 @@ Este projeto é uma Single Page Application (SPA) moderna, reativa e componentiz
 
 * **Objetivo do projeto:** Aplicação web para criação manual ou assistida por IA, edição por seções e exportação de relatórios em PDF, DOCX e Markdown; modelos administrativos customizam o PDF.
 * **Público-alvo:** Visitantes que criam relatórios sem conta e um único administrador autenticado que gerencia modelos PDF.
-* **Status atual:** SPA inicial e API de protótipo implementadas. API, auth e exportadores formam uma base local; provedor real de IA, hospedagem pública e políticas finais continuam pendentes de aprovação.
+* **Status atual:** SPA e API de protótipo implementadas. Geração assistida e regeneração de seções usam os contratos server-side e o editor comum; o adaptador fake é o padrão, e ativação de provedor real/hospedagem continua sujeita a aprovação.
 
 ---
 
@@ -252,9 +252,9 @@ meu-projeto/
 ├── public/                    # Assets estáticos públicos servidos na raiz (ícones, favicons, etc.)
 ├── tests/                     # Testes funcionais e fluxos E2E com Playwright
 │   ├── api/
-│   │   └── api.test.js        # Contratos, sessão admin, templates, arquivos e exportação
+│   │   └── api.test.js        # Contratos, provedores de IA, cancelamento e exportação
 │   └── e2e/
-│       └── rotas.spec.js      # Landing, editor manual, retomada, anexos e acesso administrativo
+│       └── rotas.spec.js      # Landing, geração/regeneração IA, editor, retomada e acesso administrativo
 └── src/
     ├── main.jsx (ou .tsx)     # Bootstrap da aplicação: ThemeProvider + GlobalStyled + App
     ├── App.jsx (ou .tsx)      # Provedores globais e renderização de AppRoutes
@@ -266,16 +266,17 @@ meu-projeto/
     │
     ├── components/
     │   ├── LocalDraftList/    # Lista, retomada e remoção de rascunhos locais na Home
-    │   ├── ManualReportEditor/# Editor manual, seções, anexos e prévia
+    │   ├── ManualReportEditor/# Editor compartilhado, seções, anexos, prévia e propostas de IA
+    │   ├── ReportGenerationForm/ # Parâmetros, cancelamento e estados da geração de relatório
     │   └── StartReportModal/  # Modal acessível para modalidade, formatos e modelos PDF
     ├── pages/                 # Páginas da aplicação (uma pasta por tela)
     │   ├── AdminArea/         # Área inicial protegida pela sessão administrativa
     │   ├── AdminLogin/        # Login conectado à sessão da API
     │   ├── Home/              # Landing page e início do fluxo
     │   ├── Outlet/            # Layout mestre: Header + <Outlet /> + Footer
-    │   └── RelatorioNovo/     # Editor manual por ID ou resumo do início da modalidade IA
+    │   └── RelatorioNovo/     # Formulário IA e entrada do editor compartilhado por ID
     ├── services/
-    │   ├── api.js             # Cliente same-origin para modelos e sessão administrativa
+    │   ├── api.js             # Cliente same-origin, IA, sinais de cancelamento e validação de respostas
     │   └── reportDrafts.js    # IndexedDB para drafts e Blob de imagens locais
     │
     ├── themes/                # Configuração central de design system e estilos globais
@@ -458,9 +459,10 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 5. **Templates PDF não executáveis**: templates administrativos não executam JavaScript, eventos inline, recursos remotos ou componentes React; valores do relatório devem ser escapados e renderização isolada conforme a política documentada.
 6. **Erro não destrutivo**: falhas de persistência local, IA, template ou exportação devem ser explícitas e preservar o rascunho; geração concorrente nunca sobrescreve silenciosamente edições posteriores.
 7. **Sem segredo no client**: chaves do provedor de IA e credenciais admin permanecem em configuração server-side, nunca em código versionado ou variáveis `VITE_`.
-8. **Limites da API**: schemas rejeitam payloads inválidos; uploads aceitam JPEG/PNG/WebP e têm limites de arquivo/pixels/total; IA e exportação têm rate limit por IP.
-9. **Templates PDF**: HTML/CSS é limitado por allowlist, sem scripts, handlers, recursos remotos, URLs CSS ou JavaScript no Chromium; templates publicados são os únicos listados publicamente.
-10. **Editor local**: máximo de 20 seções, 5 MiB por imagem e 20 MiB de imagens por relatório; IndexedDB guarda JSON e blobs em stores separados, e falhas/quota não limpam o estado em memória.
+8. **Regeneração não destrutiva**: propostas de IA para uma seção são revisadas antes de aplicar; edições concorrentes invalidam respostas obsoletas, e anexos e seções não alvo permanecem inalterados.
+9. **Limites da API**: schemas rejeitam payloads inválidos; uploads aceitam JPEG/PNG/WebP e têm limites de arquivo/pixels/total; IA e exportação têm rate limit por IP.
+10. **Templates PDF**: HTML/CSS é limitado por allowlist, sem scripts, handlers, recursos remotos, URLs CSS ou JavaScript no Chromium; templates publicados são os únicos listados publicamente.
+11. **Editor local**: máximo de 20 seções, 5 MiB por imagem e 20 MiB de imagens por relatório; IndexedDB guarda JSON e blobs em stores separados, e falhas/quota não limpam o estado em memória.
 
 ---
 
@@ -692,3 +694,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-09 | GitHub Copilot | Inclusão do adaptador server-side Gemini `generateContent`, configuração dedicada `GEMINI_API_KEY`/`GEMINI_MODEL`, validação estruturada, testes de falha/segredo e documentação da integração opcional. |
 | 2026-11-09 | GitHub Copilot | Implementação da Etapa 3: landing responsiva, modal nativa acessível, seleção de formatos/modelos publicados, rotas de início e administração, login por sessão e testes E2E. |
 | 2026-11-09 | GitHub Copilot | Implementação da Etapa 4: editor manual e prévia, edição/reordenação de seções, anexos validados, IndexedDB para rascunhos/imagens, retomada por ID, testes E2E e documentação. |
+| 2026-11-10 | GitHub Copilot | Implementação da Etapa 5: geração assistida integrada ao editor compartilhado, validação cliente/servidor, cancelamento, retry, propostas de regeneração não destrutivas, testes API/E2E e atualização da documentação. |

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import sharp from 'sharp';
+import { createAiService } from '../../api/ai.js';
 import { createApi } from '../../api/app.js';
 import { renderPdfHtml, sanitizeTemplate, systemTemplate } from '../../api/exporters.js';
 
@@ -227,6 +228,37 @@ describe('API do protótipo', () => {
     }
   });
 
+  it('rejeita uma saída do provedor que não atende ao contrato do relatório', async () => {
+    const openAiApp = await createApi({
+      databasePath: join(directory, 'openai-invalid-output.sqlite'),
+      adminUsername: 'admin',
+      adminPassword: 'local-test-password-123',
+      aiProvider: 'openai',
+      openAiApiKey: 'server-only-test-secret',
+      appOrigin: origin,
+      secureCookies: false,
+      logger: false,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      output_text: JSON.stringify({ title: 'Relatório incompleto', sections: [] }),
+    }), { status: 200 });
+
+    try {
+      const response = await openAiApp.inject({
+        method: 'POST',
+        url: '/api/v1/ai/reports',
+        payload: { topic: 'Resposta inválida', brief },
+      });
+      assert.equal(response.statusCode, 502);
+      assert.equal(response.json().error.code, 'AI_INVALID_RESPONSE');
+      assert.equal(response.json().sections, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await openAiApp.close();
+    }
+  });
+
   it('gera relatório pela API Gemini com chave server-side e schema JSON', async () => {
     const geminiApp = await createApi({
       databasePath: join(directory, 'gemini.sqlite'),
@@ -342,6 +374,33 @@ describe('API do protótipo', () => {
     } finally {
       globalThis.fetch = originalFetch;
       await geminiApp.close();
+    }
+  });
+
+  it('propaga cancelamento do cliente ao provedor de IA', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options) => new Promise((resolve, reject) => {
+      assert.equal(url, 'https://api.openai.com/v1/responses');
+      options.signal.addEventListener('abort', () => {
+        const error = new Error('Request aborted');
+        error.name = 'AbortError';
+        reject(error);
+      }, { once: true });
+    });
+
+    try {
+      const service = createAiService({
+        aiProvider: 'openai',
+        openAiApiKey: 'server-only-test-secret',
+        openAiModel: 'test-model',
+        aiTimeoutMs: 10000,
+      });
+      const controller = new AbortController();
+      const pending = service.generate({ topic: 'Cancelamento', brief }, { signal: controller.signal });
+      controller.abort();
+      await assert.rejects(pending, (error) => error.code === 'AI_CANCELLED');
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 

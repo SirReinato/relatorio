@@ -2,7 +2,7 @@
 
 Aplicação web planejada para criar relatórios manualmente ou com auxílio de IA, revisar conteúdo por seções e exportar PDF, DOCX e Markdown. Visitantes poderão criar relatórios sem conta; somente o administrador terá acesso autenticado para gerenciar modelos visuais de PDF.
 
-> **Estado atual:** SPA React/Vite e API de protótipo implementadas. A API oferece geração fake por padrão, sessão administrativa, modelos PDF e exportação; IA real é opcional e exige configuração server-side. Hospedagem e ativação pública ainda não foram aprovadas.
+> **Estado atual:** SPA React/Vite e API de protótipo implementadas. A modalidade IA gera relatórios estruturados e permite propor regeneração de seções no editor; a API usa o adaptador fake por padrão, enquanto IA real exige configuração server-side. Hospedagem e ativação pública ainda não foram aprovadas.
 
 ## Stack atual da SPA
 
@@ -21,8 +21,8 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - Exportação PDF com Playwright/Chromium, DOCX com `docx` e Markdown próprio; os relatórios não são persistidos no servidor.
 - Templates PDF HTML/CSS usam allowlist e renderização sem JavaScript ou acesso à rede.
 - Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
-- A landing abre um modal acessível para modalidade, formatos e modelos publicados. O início do relatório resume as escolhas sem executar geração ou exportação.
-- A modalidade manual abre um editor de relatório com seções, detalhes, imagens e prévia. Drafts e imagens são salvos no IndexedDB deste navegador, podem ser retomados pela Home ou pela rota com ID e não são enviados ao servidor durante a edição.
+- A landing abre um modal acessível para modalidade, formatos e modelos publicados. A modalidade IA coleta tema e parâmetros opcionais, envia a solicitação explicitamente à API, permite cancelar/tentar novamente e valida a resposta antes de criar o draft.
+- A modalidade manual e os drafts gerados por IA usam o mesmo editor de relatório com seções, detalhes, imagens e prévia. Drafts e imagens são salvos no IndexedDB deste navegador e podem ser retomados pela Home ou pela rota com ID. A regeneração de seção apresenta uma proposta para aceitar ou descartar, preservando anexos, outras seções e edições concorrentes.
 - O armazenamento local mantém até 10 rascunhos; aceita JPEG/PNG/WebP até 5 MiB por imagem e 20 MiB por relatório, com erros explícitos quando quota ou armazenamento não permitem salvar.
 - `/admin/login` autentica contra a API e `/admin` verifica a sessão; a gestão de modelos será ampliada na Etapa 6.
 
@@ -45,7 +45,7 @@ O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a c
 | CRUD/publicação/preview de modelos | `/api/v1/admin/templates` |
 | Exportar PDF, DOCX ou Markdown | `POST /api/v1/exports/{pdf,docx,markdown}` |
 
-Rotas da SPA: `/` (landing e retomada de drafts), `/relatorios/novo` (início manual ou resumo do fluxo IA), `/relatorios/novo/:draftId` (abrir/retomar editor manual), `/admin/login` e `/admin` (área administrativa inicial). Geração de IA e CRUD completo de modelos seguem nas etapas posteriores.
+Rotas da SPA: `/` (landing e retomada de drafts), `/relatorios/novo` (formulário IA ou editor manual conforme a modalidade escolhida), `/relatorios/novo/:draftId` (abrir/retomar editor de drafts manuais ou gerados por IA), `/admin/login` e `/admin` (área administrativa inicial). A integração real de IA é opcional e depende de configuração do servidor.
 
 Teste de API: `npm run test:api`. Os dados SQLite locais ficam em `data/`, ignorada pelo Git.
 

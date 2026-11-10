@@ -46,6 +46,22 @@ function now() {
   return new Date().toISOString();
 }
 
+function createRequestAbortSignal(request, reply) {
+  const controller = new AbortController();
+  const abortIfDisconnected = () => {
+    if (!reply.raw.writableEnded) controller.abort();
+  };
+  request.raw.once('aborted', abortIfDisconnected);
+  reply.raw.once('close', abortIfDisconnected);
+  return {
+    signal: controller.signal,
+    cleanup() {
+      request.raw.off('aborted', abortIfDisconnected);
+      reply.raw.off('close', abortIfDisconnected);
+    },
+  };
+}
+
 function fail(statusCode, code, message, request, extra = {}) {
   throw new ApiError(statusCode, code, message, extra);
 }
@@ -300,16 +316,28 @@ export async function createApi(options = {}) {
   app.post('/api/v1/ai/reports', {
     schema: { body: generateReportSchema },
     config: { rateLimit: { max: 3, timeWindow: '10 minutes' } },
-  }, async (request) => {
-    const report = await ai.generate(request.body);
-    validationError(reportErrors(report), request);
-    return report;
+  }, async (request, reply) => {
+    const abort = createRequestAbortSignal(request, reply);
+    try {
+      const report = await ai.generate(request.body, { signal: abort.signal });
+      validationError(reportErrors(report), request);
+      return report;
+    } finally {
+      abort.cleanup();
+    }
   });
 
   app.post('/api/v1/ai/sections/regenerate', {
     schema: { body: regenerateSectionSchema },
     config: { rateLimit: { max: 3, timeWindow: '10 minutes' } },
-  }, async (request) => ai.regenerateSection(request.body));
+  }, async (request, reply) => {
+    const abort = createRequestAbortSignal(request, reply);
+    try {
+      return await ai.regenerateSection(request.body, { signal: abort.signal });
+    } finally {
+      abort.cleanup();
+    }
+  });
 
   app.get('/api/v1/templates', async () => ({
     templates: [

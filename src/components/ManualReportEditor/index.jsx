@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  regenerateReportSection,
+  validateSectionProposal,
+} from '../../services/api.js';
+import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_DIMENSION,
   MAX_IMAGE_PIXELS,
@@ -138,9 +142,16 @@ function formatUpdatedAt(value) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
 
-export default function ManualReportEditor({ configuration, draftId }) {
+export default function ManualReportEditor({
+  configuration,
+  draftId,
+  initialDraft,
+  initialSaveError,
+}) {
   const navigate = useNavigate();
   const canonicalizingId = useRef('');
+  const sectionRevisions = useRef(new Map());
+  const regenerationControllers = useRef(new Map());
   const [draft, setDraft] = useState(null);
   const [imageBlobs, setImageBlobs] = useState(() => new Map());
   const [imageUrls, setImageUrls] = useState(() => new Map());
@@ -150,6 +161,9 @@ export default function ManualReportEditor({ configuration, draftId }) {
   const [uploadError, setUploadError] = useState('');
   const [showValidation, setShowValidation] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [regeneratingSections, setRegeneratingSections] = useState(() => new Set());
+  const [sectionProposals, setSectionProposals] = useState(() => new Map());
+  const [regenerationErrors, setRegenerationErrors] = useState(() => new Map());
 
   const validationErrors = useMemo(() => (draft ? validateDraft(draft) : []), [draft]);
   const totalImageBytes = draft
@@ -162,6 +176,14 @@ export default function ManualReportEditor({ configuration, draftId }) {
     async function initializeDraft() {
       if (draftId) {
         try {
+          if (initialDraft?.id === draftId) {
+            if (!isMounted) return;
+            setDraft(initialDraft);
+            setImageBlobs(new Map());
+            if (initialSaveError) setSaveError(initialSaveError);
+            setSaveStatus(initialSaveError ? 'error' : 'saving');
+            return;
+          }
           const stored = await loadReportDraft(draftId);
           if (!stored) throw new Error('Este rascunho não foi encontrado no armazenamento local.');
           if (!isMounted) return;
@@ -181,7 +203,12 @@ export default function ManualReportEditor({ configuration, draftId }) {
     return () => {
       isMounted = false;
     };
-  }, [configuration, draftId]);
+  }, [configuration, draftId, initialDraft, initialSaveError]);
+
+  useEffect(() => () => {
+    regenerationControllers.current.forEach((controller) => controller.abort());
+    regenerationControllers.current.clear();
+  }, []);
 
   useEffect(() => {
     const urls = new Map();
@@ -235,11 +262,103 @@ export default function ManualReportEditor({ configuration, draftId }) {
   }
 
   function updateSection(sectionId, changes) {
+    sectionRevisions.current.set(sectionId, (sectionRevisions.current.get(sectionId) || 0) + 1);
+    setSectionProposals((current) => {
+      if (!current.has(sectionId)) return current;
+      const next = new Map(current);
+      next.delete(sectionId);
+      return next;
+    });
     setDraft((current) => replaceDraft(current, {
       sections: current.sections.map((section) => (
         section.id === sectionId ? { ...section, ...changes } : section
       )),
     }));
+  }
+
+  async function regenerateSection(section) {
+    const controller = new AbortController();
+    const revision = sectionRevisions.current.get(section.id) || 0;
+    regenerationControllers.current.set(section.id, controller);
+    setRegeneratingSections((current) => new Set(current).add(section.id));
+    setRegenerationErrors((current) => {
+      const next = new Map(current);
+      next.delete(section.id);
+      return next;
+    });
+    setSectionProposals((current) => {
+      const next = new Map(current);
+      next.delete(section.id);
+      return next;
+    });
+
+    try {
+      const response = await regenerateReportSection({
+        reportContext: {
+          title: draft.title,
+          topic: draft.topic,
+          brief: draft.brief,
+          sectionTitles: draft.sections.map((item) => item.title),
+        },
+        targetSection: {
+          id: section.id,
+          title: section.title,
+          body: section.body,
+          importantDetails: section.importantDetails,
+          clientRevision: revision,
+        },
+      }, { signal: controller.signal });
+      const proposal = validateSectionProposal(response, section.id, revision);
+      if ((sectionRevisions.current.get(section.id) || 0) !== revision) {
+        setRegenerationErrors((current) => new Map(current).set(
+          section.id,
+          'A seção mudou durante a geração. A proposta desatualizada foi descartada.',
+        ));
+        return;
+      }
+      setSectionProposals((current) => new Map(current).set(section.id, {
+        proposal,
+        revision,
+      }));
+    } catch (error) {
+      if (error.name === 'AbortError' || controller.signal.aborted) {
+        setRegenerationErrors((current) => new Map(current).set(section.id, 'Regeneração cancelada.'));
+      } else {
+        setRegenerationErrors((current) => new Map(current).set(section.id, error.message));
+      }
+    } finally {
+      if (regenerationControllers.current.get(section.id) === controller) {
+        regenerationControllers.current.delete(section.id);
+      }
+      setRegeneratingSections((current) => {
+        const next = new Set(current);
+        next.delete(section.id);
+        return next;
+      });
+    }
+  }
+
+  function applySectionProposal(sectionId) {
+    const entry = sectionProposals.get(sectionId);
+    if (!entry) return;
+    if ((sectionRevisions.current.get(sectionId) || 0) !== entry.revision) {
+      setRegenerationErrors((current) => new Map(current).set(
+        sectionId,
+        'A seção mudou desde a geração. Gere uma nova proposta antes de aplicá-la.',
+      ));
+      setSectionProposals((current) => {
+        const next = new Map(current);
+        next.delete(sectionId);
+        return next;
+      });
+      return;
+    }
+
+    updateSection(sectionId, {
+      title: entry.proposal.title,
+      body: entry.proposal.body,
+      importantDetails: entry.proposal.importantDetails,
+    });
   }
 
   async function persistNow() {
@@ -560,8 +679,53 @@ export default function ManualReportEditor({ configuration, draftId }) {
                   disabled={draft.sections.length === 1}
                   onClick={() => removeSection(section.id)}
                 >Remover seção</BotaoEditorStl>
+                {regeneratingSections.has(section.id) ? (
+                  <BotaoEditorStl
+                    type="button"
+                    onClick={() => regenerationControllers.current.get(section.id)?.abort()}
+                  >Cancelar regeneração</BotaoEditorStl>
+                ) : (
+                  <BotaoEditorStl
+                    type="button"
+                    onClick={() => regenerateSection(section)}
+                  >Regenerar seção com IA</BotaoEditorStl>
+                )}
               </GrupoAcoesStl>
             </CabecalhoSecaoStl>
+
+            {regeneratingSections.has(section.id) && (
+                <TextoSecundarioStl role="status">Gerando proposta para esta seção…</TextoSecundarioStl>
+            )}
+            {regenerationErrors.has(section.id) && (
+                <MensagemErroStl role="alert">{regenerationErrors.get(section.id)}</MensagemErroStl>
+            )}
+            {sectionProposals.has(section.id) && (
+                <PainelPreviaStl aria-label={`Proposta para seção ${sectionIndex + 1}`}>
+                  <TituloSecaoStl>Proposta de regeneração — revise antes de aplicar</TituloSecaoStl>
+                  <h4>{sectionProposals.get(section.id).proposal.title}</h4>
+                  <p>{sectionProposals.get(section.id).proposal.body}</p>
+                  {sectionProposals.get(section.id).proposal.importantDetails.length > 0 && (
+                    <ul>
+                      {sectionProposals.get(section.id).proposal.importantDetails.map((detail, index) => (
+                        <li key={`${section.id}-proposal-${index}`}>{detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <GrupoAcoesStl>
+                    <BotaoEditorStl type="button" $variant="primary" onClick={() => applySectionProposal(section.id)}>
+                      Aplicar proposta
+                    </BotaoEditorStl>
+                    <BotaoEditorStl
+                      type="button"
+                      onClick={() => setSectionProposals((current) => {
+                        const next = new Map(current);
+                        next.delete(section.id);
+                        return next;
+                      })}
+                    >Descartar proposta</BotaoEditorStl>
+                  </GrupoAcoesStl>
+                </PainelPreviaStl>
+            )}
 
             <CampoRelatorioStl>
               Título da seção
