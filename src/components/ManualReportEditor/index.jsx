@@ -172,16 +172,22 @@ export default function ManualReportEditor({
   const [exportResults, setExportResults] = useState(() => new Map());
   const [isExporting, setIsExporting] = useState(false);
 
+  const currentDraftRef = useRef(null);
   const validationErrors = useMemo(() => (draft ? validateDraft(draft) : []), [draft]);
   const totalImageBytes = draft
     ? draft.sections.flatMap((section) => section.images).reduce((total, image) => total + image.sizeBytes, 0)
     : 0;
 
   useEffect(() => {
+    currentDraftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function initializeDraft() {
       if (draftId) {
+        if (currentDraftRef.current?.id === draftId) return;
         try {
           if (initialDraft?.id === draftId) {
             if (!isMounted) return;

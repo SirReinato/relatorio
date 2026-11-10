@@ -195,7 +195,7 @@ Ao inicializar um novo projeto via `npm create vite@latest`, o template do Vite 
 | `npx playwright test` | Executa a suíte de testes funcionais E2E com Playwright em modo headless | 
 | `npx playwright test --ui` | Executa os testes no modo interativo visual com timeline e DOM snapshot | 
 | `npm audit` | Varre dependências do `package.json` em busca de CVEs conhecidas | 
-| `npx semgrep scan --config auto` | Executa varredura SAST local para identificar vulnerabilidades no código fonte | 
+| `semgrep scan --config p/javascript --metrics=off` | Executa regras JavaScript do Semgrep sem enviar métricas de uso |
 
 ---
 
@@ -464,7 +464,7 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 9. **Regeneração não destrutiva**: propostas de IA para uma seção são revisadas antes de aplicar; edições concorrentes invalidam respostas obsoletas, e anexos e seções não alvo permanecem inalterados.
 10. **Limites da API**: schemas rejeitam payloads inválidos; uploads aceitam JPEG/PNG/WebP e têm limites de arquivo/pixels/total; IA e exportação têm rate limit por IP.
 11. **Templates PDF**: HTML/CSS é limitado por allowlist, incluindo tags semânticas, seletores simples/de descendentes, pseudo-elementos `::before`/`::after` e propriedades de apresentação; `@page` permite margem, tamanho de papel e a caixa `@bottom-right` restrita a texto e contadores de página. Scripts, handlers, outras regras especiais, recursos remotos, URLs CSS e JavaScript no Chromium são rejeitados; templates publicados são os únicos listados publicamente.
-12. **Editor local**: máximo de 20 seções, 5 MiB por imagem e 20 MiB de imagens por relatório; IndexedDB guarda JSON e blobs em stores separados, e falhas/quota não limpam o estado em memória.
+12. **Editor local**: máximo de 20 seções, 5 MiB por imagem e 20 MiB de imagens por relatório; IndexedDB guarda JSON e blobs em stores separados, falhas/quota não limpam o estado em memória e a canonicalização da rota não recarrega por cima do rascunho já ativo.
 
 ---
 
@@ -530,8 +530,8 @@ Como este template é portátil e pode ser executado em diferentes computadores,
 | Parâmetro | Detecção da Máquina Atual (Atualizado Dinamicamente) |
 | :--- | :--- |
 | **Sistema Operacional Detectado** | Windows 11 (PowerShell) |
-| **Variável `PLAYWRIGHT_BROWSERS_PATH`** | Não definida (utilizando `%LOCALAPPDATA%\ms-playwright` -> `C:\Users\renat\AppData\Local\ms-playwright`) |
-| **Componentes Validados no Ambiente** | `chromium-1254` (Chromium v158.0.8127.18), `chromium_headless_shell-1254`, `ffmpeg-1013`, `winldd-1007` |
+| **Variável `PLAYWRIGHT_BROWSERS_PATH`** | Definida; cache global configurado disponível (caminho de usuário não fixado neste documento) |
+| **Componentes Validados no Ambiente** | Playwright 1.65.0; `chromium-1254`, `chromium_headless_shell-1254`, `ffmpeg-1013`, `winldd-1007` |
 | **Reutilização Global Ativa** | Sim (não requer downloads adicionais no `node_modules`) |
 
 ---
@@ -603,7 +603,7 @@ Para garantir que o código gerado por agentes seja seguro desde a concepção, 
 | Camada | Ferramenta / Comando | Objetivo | Quando Executar |
 | :--- | :--- | :--- | :--- |
 | **Vulnerabilidades em Dependências** | `npm audit` | Identificar CVEs conhecidas nas dependências de produção | Antes de builds e ao instalar novas libs |
-| **Análise Estática de Código (SAST)** | **Semgrep** (`npx semgrep scan --config auto`) | Identificar padrões inseguros no código (XSS, injeções, tokens expostos) | Ao criar novos formulários, rotas ou integrações |
+| **Análise Estática de Código (SAST)** | **Semgrep** (`semgrep scan --config p/javascript --metrics=off`) | Identificar padrões inseguros no código sem compartilhar métricas de uso | Ao criar novos formulários, rotas ou integrações |
 | **Higiene de Segredos** | Verificação de `.env` | Garantir que chaves privadas e tokens de API nunca vazem para o bundle client-side | Em qualquer criação/edição de serviços e variáveis |
 | **Segurança de IA / Red Teaming** *(se aplicável)* | **Promptfoo** (`npx promptfoo redteam run`) | Testar contra injeções de prompt e vazamento de instruções de sistema | Em projetos que consom APIs de LLM |
 
@@ -702,3 +702,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-10 | GitHub Copilot | Ajuste da prévia PDF para usar o visualizador nativo do navegador sem `sandbox`, removendo a tela de bloqueio do Chrome; templates continuam restritos e a API fornece somente PDF gerado no servidor. |
 | 2026-11-10 | GitHub Copilot | Expansão da allowlist segura de templates PDF para aceitar tags `header`/`main`, seletores comuns e regras `@page` limitadas, permitindo layouts de relatório A4 sem liberar scripts ou acesso à rede. |
 | 2026-11-10 | GitHub Copilot | Ampliação da allowlist para rodapé de relatório: tag `footer`, posição fixa, propriedades de layout e `@page @bottom-right` com texto/counters de página restritos; API testa atualização e geração de PDF do template completo. |
+| 2026-11-10 | GitHub Copilot | Validação final do MVP: proteção contra origens ausentes/externas no login admin, preservação do rascunho ativo ao canonicalizar a rota, sincronização dos comandos SAST e dados Playwright, e alinhamento da documentação à Etapa 8. |
