@@ -518,6 +518,15 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
   it('exporta Markdown e rejeita payload de exportação inválido', async () => {
     const boundary = 'relatorio-test-boundary';
     const report = makeReport();
+    const imageId = randomUUID();
+    report.title = 'Relatório <script>\n# não deve virar título';
+    report.sections[0].images.push({
+      id: imageId,
+      fileName: 'imagem.png',
+      mediaType: 'image/png',
+      sizeBytes: 120,
+      caption: 'Figura de exemplo',
+    });
     const multipart = [
       `--${boundary}`,
       'Content-Disposition: form-data; name="report"',
@@ -535,8 +544,20 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
       payload: multipart,
     });
     assert.equal(response.statusCode, 200, response.body);
+    assert.match(response.headers['content-type'], /^text\/markdown/);
     assert.match(response.headers['content-disposition'], /\.md"/);
-    assert.match(response.body, /Relatório de teste/);
+    assert.match(response.body, /Figura de exemplo/);
+    assert.doesNotMatch(response.body, /<script>/);
+    assert.doesNotMatch(response.body, /\n# não deve virar título/);
+
+    const unselectedFormat = await app.inject({
+      method: 'POST',
+      url: '/api/v1/exports/pdf',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: multipart,
+    });
+    assert.equal(unselectedFormat.statusCode, 400);
+    assert.equal(unselectedFormat.json().error.code, 'FORMAT_NOT_SELECTED');
 
     const invalid = await app.inject({
       method: 'POST',
@@ -569,6 +590,8 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
       payload: multipart,
     });
     assert.equal(response.statusCode, 200, response.body);
+    assert.equal(response.headers['content-type'], 'application/pdf');
+    assert.match(response.headers['content-disposition'], /\.pdf"/);
     assert.equal(response.rawPayload.subarray(0, 5).toString('ascii'), '%PDF-');
   });
 
@@ -616,6 +639,8 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
       payload,
     });
     assert.equal(response.statusCode, 200, response.body);
+    assert.match(response.headers['content-type'], /^application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document/);
+    assert.match(response.headers['content-disposition'], /\.docx"/);
     assert.equal(response.body.slice(0, 2), 'PK');
   });
 });

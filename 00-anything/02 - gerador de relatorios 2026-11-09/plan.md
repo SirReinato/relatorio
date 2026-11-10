@@ -14,8 +14,8 @@ Implementar a experiência em etapas, começando por uma decisão técnica expl�
 
 - SPA inicializada com Vite, React 18, `react-router-dom`, styled-components, ESLint e Playwright.
 - A rota `/` apresenta a landing page; `/relatorios/novo` oferece o início manual ou por IA, e `/relatorios/novo/:draftId` retoma um rascunho local.
-- A API de protótipo, sessão administrativa e exportadores existem; o fluxo manual agora persiste drafts e imagens no IndexedDB.
-- Geração de IA no editor, sincronização server-side de relatórios e exportação final permanecem em etapas posteriores.
+- A API de protótipo, sessão administrativa e exportadores existem; o fluxo manual persiste drafts e imagens no IndexedDB.
+- As Etapas 3 a 7 estão implementadas, incluindo geração assistida, gerenciamento de modelos PDF e exportação multi-formato. A validação final e as decisões de produção permanecem pendentes.
 - O `AGENTS.md` exige que alterações estruturais atualizem sua árvore/histórico, o `README.md` quando aplicável e o grafo graphify; também exige branch de feature, validação e isolamento de artefatos de planejamento em `00-anything/`.
 
 ## 3. Requisitos e decisões confirmados
@@ -230,6 +230,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 
 **Prompt copiável:**  
 > Implemente os exportadores PDF, DOCX e Markdown para o relatório estruturado, seguindo Etapa 7 de `plan.md` e decisões de arquitetura. PDF deve aplicar o template administrativo publicado escolhido, com renderização isolada/segura; DOCX e Markdown usam a formatação padrão do MVP. Suporte seleção de múltiplos formatos e reporte erros por formato sem perda de conteúdo. Valide arquivos e downloads com testes apropriados.
+
+**Entrega realizada (2026-11-10):** O editor envia todos os formatos selecionados em paralelo usando o mesmo snapshot do rascunho; cada resultado mantém estado/erro próprio, permite retry isolado e oferece download individual sem interromper os demais. PDF e DOCX recebem as imagens referenciadas; Markdown não envia os binários e registra legenda ou nome da imagem como referência textual, conforme a decisão de arquitetura pendente sobre distribuição de imagens. A API rejeita formatos não selecionados, valida os anexos dos formatos binários e devolve MIME/extensão por formato. O serializador Markdown escapa HTML/markup e normaliza quebras de linha para evitar conteúdo controlado pelo usuário alterar a estrutura. Testes API validam contrato, cabeçalhos e payload; E2E cobre snapshot, falha/retry isolado e downloads.
 
 ### Etapa 8 — `test(mvp): validar fluxos e atualizar governanca`
 

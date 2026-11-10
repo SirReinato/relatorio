@@ -139,7 +139,7 @@ function requireSameOrigin(request, config) {
   }
 }
 
-async function parseExportMultipart(request) {
+async function parseExportMultipart(request, format) {
   let report;
   const uploadedImages = new Map();
   let totalImageBytes = 0;
@@ -163,6 +163,10 @@ async function parseExportMultipart(request) {
           throw new ApiError(400, 'INVALID_EXPORT_REQUEST', 'O campo report não contém JSON válido.');
         }
         continue;
+      }
+
+      if (format === 'markdown') {
+        throw new ApiError(400, 'UNEXPECTED_EXPORT_IMAGE', 'A exportação Markdown inclui referências e legendas, sem enviar os arquivos de imagem.');
       }
 
       const imageMatch = /^image:([0-9a-f-]{36})$/i.exec(part.fieldname);
@@ -194,13 +198,19 @@ async function parseExportMultipart(request) {
 
   if (!report) throw new ApiError(400, 'INVALID_EXPORT_REQUEST', 'O campo report é obrigatório.');
   validationError(reportErrors(report), request);
+  if (!report.selectedFormats.includes(format)) {
+    throw new ApiError(400, 'FORMAT_NOT_SELECTED', 'Selecione este formato no relatório antes de exportar.');
+  }
 
   const referencedImages = report.sections.flatMap((section) => section.images);
-  if (referencedImages.length > 20 || referencedImages.length !== uploadedImages.size) {
+  if (
+    format !== 'markdown'
+    && (referencedImages.length > 20 || referencedImages.length !== uploadedImages.size)
+  ) {
     throw new ApiError(400, 'IMAGE_MISMATCH', 'Envie somente as imagens referenciadas no relatório.');
   }
 
-  for (const image of referencedImages) {
+  for (const image of format === 'markdown' ? [] : referencedImages) {
     const uploaded = uploadedImages.get(image.id);
     if (
       !uploaded
@@ -504,7 +514,7 @@ export async function createApi(options = {}) {
     },
     config: { rateLimit: { max: 10, timeWindow: '10 minutes' } },
   }, async (request, reply) => {
-    const { report, uploadedImages } = await parseExportMultipart(request);
+    const { report, uploadedImages } = await parseExportMultipart(request, request.params.format);
     let result;
     let contentType;
     let extension;

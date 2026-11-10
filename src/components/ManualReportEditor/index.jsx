@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  exportReport,
   regenerateReportSection,
   validateSectionProposal,
 } from '../../services/api.js';
@@ -29,12 +30,15 @@ import {
   ListaDetalhesStl,
   MensagemErroStl,
   PaginaEditorStl,
+  PainelExportacaoStl,
   PainelPreviaStl,
   SelecaoRelatorioStl,
   StatusSalvamentoStl,
   TextoSecundarioStl,
   TituloEditorStl,
   TituloSecaoStl,
+  ItemExportacaoStl,
+  ListaExportacoesStl,
 } from './styles.js';
 
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -152,6 +156,7 @@ export default function ManualReportEditor({
   const canonicalizingId = useRef('');
   const sectionRevisions = useRef(new Map());
   const regenerationControllers = useRef(new Map());
+  const isExportingRef = useRef(false);
   const [draft, setDraft] = useState(null);
   const [imageBlobs, setImageBlobs] = useState(() => new Map());
   const [imageUrls, setImageUrls] = useState(() => new Map());
@@ -164,6 +169,8 @@ export default function ManualReportEditor({
   const [regeneratingSections, setRegeneratingSections] = useState(() => new Set());
   const [sectionProposals, setSectionProposals] = useState(() => new Map());
   const [regenerationErrors, setRegenerationErrors] = useState(() => new Map());
+  const [exportResults, setExportResults] = useState(() => new Map());
+  const [isExporting, setIsExporting] = useState(false);
 
   const validationErrors = useMemo(() => (draft ? validateDraft(draft) : []), [draft]);
   const totalImageBytes = draft
@@ -517,6 +524,78 @@ export default function ManualReportEditor({
     if (validationErrors.length === 0) setIsPreviewOpen(true);
   }
 
+  async function runExportJobs(jobs) {
+    if (isExportingRef.current) return;
+    isExportingRef.current = true;
+    setIsExporting(true);
+    try {
+      await Promise.all(jobs.map(async ({ format, reportSnapshot, imageBlobSnapshot }) => {
+        const result = {
+          status: 'running',
+          reportSnapshot,
+          imageBlobSnapshot,
+          snapshotUpdatedAt: reportSnapshot.updatedAt,
+        };
+        setExportResults((current) => new Map(current).set(format, result));
+        try {
+          const file = await exportReport(format, reportSnapshot, imageBlobSnapshot);
+          setExportResults((current) => new Map(current).set(format, {
+            ...result,
+            ...file,
+            status: 'success',
+          }));
+        } catch (error) {
+          setExportResults((current) => new Map(current).set(format, {
+            ...result,
+            error: error.message,
+            status: 'error',
+          }));
+        }
+      }));
+    } finally {
+      isExportingRef.current = false;
+      setIsExporting(false);
+    }
+  }
+
+  function exportSelectedFormats() {
+    setShowValidation(true);
+    if (validationErrors.length > 0) return;
+    if (draft.selectedFormats.length === 0) return;
+
+    const reportSnapshot = JSON.parse(JSON.stringify(draft));
+    const imageBlobSnapshot = new Map(imageBlobs);
+    runExportJobs(draft.selectedFormats.map((format) => ({
+      format,
+      reportSnapshot,
+      imageBlobSnapshot,
+    })));
+  }
+
+  function retryExport(format) {
+    const previousResult = exportResults.get(format);
+    if (!previousResult?.reportSnapshot) return;
+    runExportJobs([{
+      format,
+      reportSnapshot: previousResult.reportSnapshot,
+      imageBlobSnapshot: previousResult.imageBlobSnapshot,
+    }]);
+  }
+
+  function downloadExport(format) {
+    const result = exportResults.get(format);
+    if (!result?.blob) return;
+    const url = URL.createObjectURL(result.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = result.filename;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   if (loadError) {
     return (
       <PaginaEditorStl data-testid="editor-relatorio">
@@ -838,10 +917,82 @@ export default function ManualReportEditor({
 
       {showValidation && validationErrors.length > 0 && (
         <MensagemErroStl role="alert" data-testid="erros-validacao">
-          Revise os campos antes de abrir a prévia:
+          Revise os campos antes de abrir a prévia ou exportar:
           <ul>{validationErrors.map((error) => <li key={error}>{error}</li>)}</ul>
         </MensagemErroStl>
       )}
+
+      <PainelExportacaoStl aria-label="Exportar relatório" data-testid="exportacoes">
+        <TituloSecaoStl>Exportar arquivos</TituloSecaoStl>
+        <TextoSecundarioStl>
+          Os formatos selecionados usam o mesmo snapshot do relatório. O relatório e as imagens necessárias
+          serão enviados à API somente durante a exportação; falhas podem ser repetidas por formato.
+        </TextoSecundarioStl>
+        <BotaoEditorStl
+          type="button"
+          $variant="primary"
+          disabled={isExporting || draft.selectedFormats.length === 0}
+          onClick={exportSelectedFormats}
+        >
+          {isExporting ? 'Gerando arquivos…' : 'Gerar arquivos selecionados'}
+        </BotaoEditorStl>
+        {draft.selectedFormats.length === 0 && (
+          <TextoSecundarioStl role="status">Selecione PDF, DOCX ou Markdown para habilitar a exportação.</TextoSecundarioStl>
+        )}
+        {exportResults.size > 0 && (
+          <ListaExportacoesStl aria-label="Resultados dos formatos exportados">
+            {[...exportResults.entries()].map(([format, result]) => {
+              const label = formatLabels[format];
+              const isOutdated = result.snapshotUpdatedAt !== draft.updatedAt;
+              return (
+                <ItemExportacaoStl key={format} data-testid={`resultado-exportacao-${format}`}>
+                  <div>
+                    <strong>{label}</strong>
+                    {result.status === 'running' && (
+                      <TextoSecundarioStl role="status" data-testid={`estado-exportacao-${format}`}>
+                        Gerando {label}…
+                      </TextoSecundarioStl>
+                    )}
+                    {result.status === 'success' && (
+                      <>
+                        <TextoSecundarioStl role="status" data-testid={`estado-exportacao-${format}`}>
+                          {label} gerado com sucesso.
+                        </TextoSecundarioStl>
+                        {isOutdated && (
+                          <TextoSecundarioStl>
+                            Arquivo da revisão de {formatUpdatedAt(result.snapshotUpdatedAt)}; alterações posteriores não estão incluídas.
+                          </TextoSecundarioStl>
+                        )}
+                      </>
+                    )}
+                    {result.status === 'error' && (
+                      <MensagemErroStl role="alert" data-testid={`erro-exportacao-${format}`}>
+                        Não foi possível gerar {label}: {result.error}
+                      </MensagemErroStl>
+                    )}
+                  </div>
+                  <GrupoAcoesStl>
+                    {result.status === 'success' && (
+                      <BotaoEditorStl type="button" onClick={() => downloadExport(format)}>
+                        Baixar {label}
+                      </BotaoEditorStl>
+                    )}
+                    {result.status === 'error' && (
+                      <BotaoEditorStl
+                        type="button"
+                        disabled={isExporting}
+                        onClick={() => retryExport(format)}
+                      >
+                        Tentar novamente {label}
+                      </BotaoEditorStl>
+                    )}
+                  </GrupoAcoesStl>
+                </ItemExportacaoStl>
+              );
+            })}
+          </ListaExportacoesStl>
+        )}
+      </PainelExportacaoStl>
 
       {isPreviewOpen && (
         <PainelPreviaStl aria-label="Prévia do relatório" data-testid="previa-relatorio">
