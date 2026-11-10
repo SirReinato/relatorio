@@ -314,7 +314,9 @@ export async function createPdf(report, template, images = new Map()) {
 export { MAX_NORMALIZED_IMAGES_BYTES };
 
 function escapeMarkdown(value) {
-  return String(value).replace(/([\\`*_{}[\]()#+.!|>~-])/g, '\\$1');
+  return String(value)
+    .replace(/\r?\n/g, ' ')
+    .replace(/([\\`*_{}[\]()#+.!|<>~-])/g, '\\$1');
 }
 
 export function createMarkdown(report) {

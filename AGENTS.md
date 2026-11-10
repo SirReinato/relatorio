@@ -267,7 +267,7 @@ meu-projeto/
     ├── components/
     │   ├── LocalDraftList/    # Lista, retomada e remoção de rascunhos locais na Home
     │   ├── AdminTemplateManager/ # CRUD administrativo, publicação e prévia isolada de PDFs
-    │   ├── ManualReportEditor/# Editor compartilhado, seções, anexos, prévia e propostas de IA
+    │   ├── ManualReportEditor/# Editor compartilhado, seções, anexos, prévia, propostas de IA e exportação/download
     │   ├── ReportGenerationForm/ # Parâmetros, cancelamento e estados da geração de relatório
     │   └── StartReportModal/  # Modal acessível para modalidade, formatos e modelos PDF
     ├── pages/                 # Páginas da aplicação (uma pasta por tela)
@@ -277,7 +277,7 @@ meu-projeto/
     │   ├── Outlet/            # Layout mestre: Header + <Outlet /> + Footer
     │   └── RelatorioNovo/     # Formulário IA e entrada do editor compartilhado por ID
     ├── services/
-    │   ├── api.js             # Cliente same-origin, IA, sinais de cancelamento e validação de respostas
+    │   ├── api.js             # Cliente same-origin, IA, exportação/download, cancelamento e validação de respostas
     │   └── reportDrafts.js    # IndexedDB para drafts e Blob de imagens locais
     │
     ├── themes/                # Configuração central de design system e estilos globais
@@ -698,6 +698,7 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-09 | GitHub Copilot | Implementação da Etapa 4: editor manual e prévia, edição/reordenação de seções, anexos validados, IndexedDB para rascunhos/imagens, retomada por ID, testes E2E e documentação. |
 | 2026-11-10 | GitHub Copilot | Implementação da Etapa 5: geração assistida integrada ao editor compartilhado, validação cliente/servidor, cancelamento, retry, propostas de regeneração não destrutivas, testes API/E2E e atualização da documentação. |
 | 2026-11-10 | GitHub Copilot | Implementação da Etapa 6: CRUD e ciclo de publicação de templates PDF, exclusão protegida de rascunhos, prévia PDF gerada no servidor, sincronização com seletor público, cobertura API/E2E e preservação do estado do formulário durante atualizações da lista. |
+| 2026-11-10 | GitHub Copilot | Implementação da Etapa 7: exportação multi-formato no editor usando snapshot único, progresso/falhas e retry independentes, downloads individuais, envio de imagens apenas para PDF/DOCX, escaping de Markdown e testes API/E2E. |
 | 2026-11-10 | GitHub Copilot | Ajuste da prévia PDF para usar o visualizador nativo do navegador sem `sandbox`, removendo a tela de bloqueio do Chrome; templates continuam restritos e a API fornece somente PDF gerado no servidor. |
 | 2026-11-10 | GitHub Copilot | Expansão da allowlist segura de templates PDF para aceitar tags `header`/`main`, seletores comuns e regras `@page` limitadas, permitindo layouts de relatório A4 sem liberar scripts ou acesso à rede. |
 | 2026-11-10 | GitHub Copilot | Ampliação da allowlist para rodapé de relatório: tag `footer`, posição fixa, propriedades de layout e `@page @bottom-right` com texto/counters de página restritos; API testa atualização e geração de PDF do template completo. |

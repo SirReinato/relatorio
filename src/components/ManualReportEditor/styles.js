@@ -201,6 +201,38 @@ export const PainelPreviaStl = styled.section`
   border-radius: ${({ theme }) => theme.borderRadius.md};
 `;
 
+export const PainelExportacaoStl = styled.section`
+  display: grid;
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.lg};
+  background: ${({ theme }) => theme.colors.surfaceAlt};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+`;
+
+export const ListaExportacoesStl = styled.ul`
+  display: grid;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`;
+
+export const ItemExportacaoStl = styled.li`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.md};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+
+  > div:first-child {
+    min-width: 0;
+  }
+`;
+
 export const MensagemErroStl = styled.div`
   padding: ${({ theme }) => theme.spacing.md};
   color: ${({ theme }) => theme.colors.textPrimary};

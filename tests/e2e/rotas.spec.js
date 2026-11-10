@@ -132,6 +132,99 @@ test.describe('Landing page e início do relatório', () => {
     await expect(page.getByTestId('secao-2')).toHaveCount(0);
   });
 
+  test('exporta múltiplos formatos do mesmo snapshot, isola falhas e baixa cada arquivo', async ({ page }) => {
+    const exportRequests = [];
+    let pdfAttempts = 0;
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: [] }));
+    await page.route('**/api/v1/exports/*', async (route) => {
+      const request = route.request();
+      const format = new URL(request.url()).pathname.split('/').pop();
+      const body = request.postDataBuffer().toString('utf8');
+      exportRequests.push({ format, body });
+
+      if (format === 'pdf' && pdfAttempts === 0) {
+        pdfAttempts += 1;
+        await fulfillJson(route, 503, {
+          error: { code: 'PDF_BUSY', message: 'PDF temporariamente indisponível.', retryable: true },
+        });
+        return;
+      }
+
+      const fileTypes = {
+        pdf: { contentType: 'application/pdf', extension: 'pdf', body: Buffer.from('%PDF-1.4 teste') },
+        docx: {
+          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          extension: 'docx',
+          body: Buffer.from('PK\u0003\u0004teste'),
+        },
+        markdown: { contentType: 'text/markdown; charset=utf-8', extension: 'md', body: Buffer.from('# Relatório') },
+      };
+      const fileType = fileTypes[format];
+      await route.fulfill({
+        status: 200,
+        contentType: fileType.contentType,
+        headers: { 'content-disposition': `attachment; filename="Relatorio-de-exportacao.${fileType.extension}"` },
+        body: fileType.body,
+      });
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+    await page.getByLabel('Título do relatório').fill('Relatório de exportação');
+    await page.getByLabel('Tema do relatório').fill('Formatos combinados');
+    await page.getByLabel('Conteúdo da seção 1').fill('Conteúdo do snapshot exportado.');
+    await page.getByLabel('Formato PDF').check();
+    await page.getByLabel('Formato DOCX').check();
+    await page.getByLabel('Formato Markdown').check();
+    await page.locator('[aria-label="Adicionar imagem à seção 1"]').setInputFiles({
+      name: 'evidencia.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWPgUbIAAACkAGfNzc0uAAAAAElFTkSuQmCC', 'base64'),
+    });
+    await page.getByLabel('Legenda da imagem evidencia.png').fill('Imagem do relatório');
+    await page.getByRole('button', { name: 'Gerar arquivos selecionados' }).click();
+
+    await expect(page.getByTestId('erro-exportacao-pdf')).toContainText('PDF temporariamente indisponível.');
+    await expect(page.getByTestId('estado-exportacao-docx')).toHaveText('DOCX gerado com sucesso.');
+    await expect(page.getByTestId('estado-exportacao-markdown')).toHaveText('Markdown gerado com sucesso.');
+
+    const initialRequests = exportRequests.slice(0, 3);
+    expect(initialRequests.map(({ format }) => format).sort()).toEqual(['docx', 'markdown', 'pdf']);
+    const reportPayloads = initialRequests.map(({ body }) => {
+      const match = body.match(/name="report"\r\n\r\n([\s\S]*?)\r\n--/);
+      expect(match).not.toBeNull();
+      return JSON.parse(match[1]);
+    });
+    expect(reportPayloads.every((report) => (
+      report.title === 'Relatório de exportação'
+      && report.sections[0].body === 'Conteúdo do snapshot exportado.'
+      && report.sections[0].images[0].caption === 'Imagem do relatório'
+    ))).toBe(true);
+
+    const markdownRequest = initialRequests.find(({ format }) => format === 'markdown');
+    const binaryRequests = initialRequests.filter(({ format }) => format !== 'markdown');
+    expect(markdownRequest.body).not.toContain('name="image:');
+    expect(binaryRequests.every(({ body }) => body.includes('name="image:'))).toBe(true);
+
+    await page.getByRole('button', { name: 'Tentar novamente PDF' }).click();
+    await expect(page.getByTestId('estado-exportacao-pdf')).toHaveText('PDF gerado com sucesso.');
+    expect(exportRequests).toHaveLength(4);
+
+    for (const [label, extension] of [
+      ['PDF', 'pdf'],
+      ['DOCX', 'docx'],
+      ['Markdown', 'md'],
+    ]) {
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: `Baixar ${label}` }).click(),
+      ]);
+      expect(download.suggestedFilename()).toBe(`Relatorio-de-exportacao.${extension}`);
+    }
+    expect(exportRequests).toHaveLength(4);
+  });
+
   test('salva e retoma um rascunho com imagem e legenda, validando substituição e remoção', async ({ page }) => {
     await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: [] }));
     await page.goto('/');

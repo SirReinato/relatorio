@@ -10,6 +10,20 @@ class ApiRequestError extends Error {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const allowedFormats = new Set(['pdf', 'docx', 'markdown']);
+const exportFileTypes = {
+  pdf: {
+    contentType: 'application/pdf',
+    extension: 'pdf',
+  },
+  docx: {
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    extension: 'docx',
+  },
+  markdown: {
+    contentType: 'text/markdown',
+    extension: 'md',
+  },
+};
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -183,6 +197,72 @@ async function requestApiBlob(path, { method = 'GET' } = {}) {
     throw new Error('A API retornou uma prévia em formato inválido.');
   }
   return blob;
+}
+
+export async function exportReport(format, report, imageBlobs = new Map()) {
+  const fileType = exportFileTypes[format];
+  if (!fileType) throw new Error('Formato de exportação inválido.');
+
+  const body = new FormData();
+  body.append('report', JSON.stringify(report));
+  if (format !== 'markdown') {
+    const images = report.sections.flatMap((section) => section.images);
+    for (const image of images) {
+      const blob = imageBlobs.get(image.id);
+      if (!blob || blob.size !== image.sizeBytes || blob.type !== image.mediaType) {
+        throw new Error(`A imagem "${image.fileName}" não está disponível para exportação. Recarregue o rascunho e tente novamente.`);
+      }
+      const extension = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+      }[image.mediaType];
+      if (!extension) throw new Error(`O formato da imagem "${image.fileName}" não é compatível.`);
+      body.append(`image:${image.id}`, blob, `image-${image.id}.${extension}`);
+    }
+  }
+
+  let response;
+  try {
+    response = await fetch(`/api/v1/exports/${format}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: fileType.contentType },
+      body,
+    });
+  } catch {
+    throw new Error('Não foi possível conectar à API. Tente novamente.');
+  }
+
+  if (!response.ok) {
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error('A API retornou uma resposta inválida.');
+    }
+    throw new ApiRequestError(
+      result.error?.message || 'Não foi possível gerar este formato.',
+      response.status,
+      result.error?.code,
+      result.error?.retryable,
+    );
+  }
+
+  const contentType = response.headers.get('content-type')?.toLowerCase() || '';
+  if (!contentType.startsWith(fileType.contentType)) {
+    throw new Error(`A API retornou um arquivo ${format.toUpperCase()} com tipo inválido.`);
+  }
+
+  const disposition = response.headers.get('content-disposition') || '';
+  const filenameMatch = /^attachment;\s*filename="([a-z0-9_-]+\.(?:pdf|docx|md))"$/i.exec(disposition);
+  if (!filenameMatch || !filenameMatch[1].toLowerCase().endsWith(`.${fileType.extension}`)) {
+    throw new Error(`A API retornou um nome de arquivo inválido para ${format.toUpperCase()}.`);
+  }
+
+  const blob = await response.blob();
+  if (blob.size === 0) throw new Error(`A API retornou um arquivo ${format.toUpperCase()} vazio.`);
+  return { blob, filename: filenameMatch[1] };
 }
 
 export async function fetchPublicTemplates() {
