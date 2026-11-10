@@ -254,7 +254,7 @@ meu-projeto/
 │   ├── api/
 │   │   └── api.test.js        # Contratos, sessão admin, templates, arquivos e exportação
 │   └── e2e/
-│       └── rotas.spec.js      # Landing, modal, modelos publicados, rotas e acesso administrativo
+│       └── rotas.spec.js      # Landing, editor manual, retomada, anexos e acesso administrativo
 └── src/
     ├── main.jsx (ou .tsx)     # Bootstrap da aplicação: ThemeProvider + GlobalStyled + App
     ├── App.jsx (ou .tsx)      # Provedores globais e renderização de AppRoutes
@@ -262,20 +262,21 @@ meu-projeto/
     ├── routes/
     │   └── AppRoutes.jsx      # Definição das rotas com <BrowserRouter>:
     │                          #  - Rota de layout mestre (<MainGeral /> com Header e Footer fixos)
-    │                          #  - Home, início de relatório e acesso administrativo
+    │                          #  - Home, /relatorios/novo/:draftId e acesso administrativo
     │
     ├── components/
+    │   ├── LocalDraftList/    # Lista, retomada e remoção de rascunhos locais na Home
+    │   ├── ManualReportEditor/# Editor manual, seções, anexos e prévia
     │   └── StartReportModal/  # Modal acessível para modalidade, formatos e modelos PDF
-    │       ├── index.jsx
-    │       └── styles.js
     ├── pages/                 # Páginas da aplicação (uma pasta por tela)
     │   ├── AdminArea/         # Área inicial protegida pela sessão administrativa
     │   ├── AdminLogin/        # Login conectado à sessão da API
     │   ├── Home/              # Landing page e início do fluxo
     │   ├── Outlet/            # Layout mestre: Header + <Outlet /> + Footer
-    │   └── RelatorioNovo/     # Resumo das escolhas; editor fica para a Etapa 4
+    │   └── RelatorioNovo/     # Editor manual por ID ou resumo do início da modalidade IA
     ├── services/
-    │   └── api.js             # Cliente same-origin para modelos e sessão administrativa
+    │   ├── api.js             # Cliente same-origin para modelos e sessão administrativa
+    │   └── reportDrafts.js    # IndexedDB para drafts e Blob de imagens locais
     │
     ├── themes/                # Configuração central de design system e estilos globais
     │   ├── GlobalStyled.jsx   # Reset CSS completo e estilos base via createGlobalStyle
@@ -425,7 +426,7 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 * **Cliente**: SPA existente em React/Vite; comunicação via services, mesma origem `/api` em desenvolvimento/produção.
 * **Servidor**: Node.js 24 LTS + Fastify 5 em processo persistente; implementação em `api/`, hospedagem de produção ainda não escolhida.
 * **Banco**: SQLite via `node:sqlite` num volume durável para conta/admin, sessões e templates PDF; protótipo de instância única. Não compartilhar arquivo SQLite entre réplicas.
-* **Rascunhos públicos**: IndexedDB guarda localmente vários relatórios e blobs de imagens; não há sincronização nem persistência server-side de relatórios de visitantes.
+* **Rascunhos públicos**: IndexedDB guarda até 10 relatórios e blobs de imagens neste navegador; não há sincronização nem persistência server-side de relatórios de visitantes.
 * **IA**: interface provider-neutral; fake determinístico para desenvolvimento/testes, com adaptadores server-side OpenAI Responses API e Gemini `generateContent`. Provedor, conta, orçamento e termos devem ser aprovados antes do uso público; nenhuma chave é requerida no cliente.
 * **PDF/DOCX/Markdown**: Playwright + Chromium, biblioteca `docx` e serializador Markdown próprio, todos derivados do mesmo schema semântico. Imagens são anexadas em memória para PDF/DOCX; Markdown informa legenda/alt-text sem anexar binários, aguardando decisão sobre ZIP.
 * **Processamento**: relatórios/imagens só são enviados sob ação explícita de geração/exportação; uploads de exportação permanecem em memória durante a requisição, sem persistência de relatório. Rever limites de concorrência/memória antes de produção.
@@ -452,13 +453,14 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 
 1. **Navegação principal**: Toda tela comum da aplicação deve ser renderizada dentro da casca mestre `MainGeral` (`pages/Outlet/index.jsx`), preservando o Header e Footer fixos.
 2. **Estilização uniforme**: Qualquer elemento visual deve consumir valores de `theme.jsx` (ex.: `props.theme.colors...`, `props.theme.buttons.primary...`, `props.theme.gradients.primary...`) para garantir consistência visual no styled-components.
-3. **Rascunhos anônimos locais**: A aplicação não persiste relatórios de visitantes no servidor por padrão; conteúdo e imagens só saem do browser quando a pessoa solicita geração IA ou exportação.
+3. **Rascunhos anônimos locais**: Relatórios e blobs ficam no IndexedDB deste navegador (até 10 drafts); conteúdo e imagens só saem do browser quando a pessoa solicita geração IA ou exportação. Falha de gravação mantém o estado em memória e sinaliza que ele não foi salvo.
 4. **Conteúdo sem HTML arbitrário**: A decisão do protótipo é corpo em texto simples com quebras de linha; o serializador Markdown constrói o `.md`. Reabrir se formatação rica for aprovada.
 5. **Templates PDF não executáveis**: templates administrativos não executam JavaScript, eventos inline, recursos remotos ou componentes React; valores do relatório devem ser escapados e renderização isolada conforme a política documentada.
 6. **Erro não destrutivo**: falhas de persistência local, IA, template ou exportação devem ser explícitas e preservar o rascunho; geração concorrente nunca sobrescreve silenciosamente edições posteriores.
 7. **Sem segredo no client**: chaves do provedor de IA e credenciais admin permanecem em configuração server-side, nunca em código versionado ou variáveis `VITE_`.
 8. **Limites da API**: schemas rejeitam payloads inválidos; uploads aceitam JPEG/PNG/WebP e têm limites de arquivo/pixels/total; IA e exportação têm rate limit por IP.
 9. **Templates PDF**: HTML/CSS é limitado por allowlist, sem scripts, handlers, recursos remotos, URLs CSS ou JavaScript no Chromium; templates publicados são os únicos listados publicamente.
+10. **Editor local**: máximo de 20 seções, 5 MiB por imagem e 20 MiB de imagens por relatório; IndexedDB guarda JSON e blobs em stores separados, e falhas/quota não limpam o estado em memória.
 
 ---
 
@@ -689,3 +691,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-09 | GitHub Copilot | Implementação da API de protótipo SIR-68 Etapa 2: Fastify, SQLite, sessão admin, contratos, adaptador de IA, templates restritos, exportadores, limites, testes e documentação de configuração. |
 | 2026-11-09 | GitHub Copilot | Inclusão do adaptador server-side Gemini `generateContent`, configuração dedicada `GEMINI_API_KEY`/`GEMINI_MODEL`, validação estruturada, testes de falha/segredo e documentação da integração opcional. |
 | 2026-11-09 | GitHub Copilot | Implementação da Etapa 3: landing responsiva, modal nativa acessível, seleção de formatos/modelos publicados, rotas de início e administração, login por sessão e testes E2E. |
+| 2026-11-09 | GitHub Copilot | Implementação da Etapa 4: editor manual e prévia, edição/reordenação de seções, anexos validados, IndexedDB para rascunhos/imagens, retomada por ID, testes E2E e documentação. |

@@ -12,6 +12,7 @@ export default function AppRoutes() {
         <Route path="/" element={<MainGeral />}>
           <Route index element={<Home />} />
           <Route path="relatorios/novo" element={<RelatorioNovo />} />
+          <Route path="relatorios/novo/:draftId" element={<RelatorioNovo />} />
           <Route path="admin/login" element={<AdminLogin />} />
           <Route path="admin" element={<AdminArea />} />
         </Route>
