@@ -19,12 +19,12 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - Sessão admin opaca com cookie HttpOnly; senha provisionada inicialmente por variáveis server-side.
 - Adaptador fake de IA por padrão. OpenAI Responses API (`AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL`) e Gemini API (`AI_PROVIDER=gemini`, `GEMINI_API_KEY`, `GEMINI_MODEL`) são opcionais e executados exclusivamente no servidor.
 - Exportação PDF com Playwright/Chromium, DOCX com `docx` e Markdown próprio; os relatórios não são persistidos no servidor.
-- Templates PDF HTML/CSS usam allowlist e renderização sem JavaScript ou acesso à rede.
+- Templates PDF HTML/CSS usam allowlist: tags semânticas permitidas, seletores simples/de descendentes, pseudo-elementos `::before`/`::after` e propriedades CSS de apresentação; `@page` aceita margens, tamanhos de papel comuns e a caixa `@bottom-right` para numeração. Scripts, outras regras especiais, importações e recursos de rede são rejeitados.
 - Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
 - A landing abre um modal acessível para modalidade, formatos e modelos publicados. A modalidade IA coleta tema e parâmetros opcionais, envia a solicitação explicitamente à API, permite cancelar/tentar novamente e valida a resposta antes de criar o draft.
 - A modalidade manual e os drafts gerados por IA usam o mesmo editor de relatório com seções, detalhes, imagens e prévia. Drafts e imagens são salvos no IndexedDB deste navegador e podem ser retomados pela Home ou pela rota com ID. A regeneração de seção apresenta uma proposta para aceitar ou descartar, preservando anexos, outras seções e edições concorrentes.
 - O armazenamento local mantém até 10 rascunhos; aceita JPEG/PNG/WebP até 5 MiB por imagem e 20 MiB por relatório, com erros explícitos quando quota ou armazenamento não permitem salvar.
-- `/admin/login` autentica contra a API e `/admin` verifica a sessão. A área permite criar e editar rascunhos, pré-visualizar PDFs gerados no servidor, publicar/despublicar e excluir modelos inativos. HTML/CSS passam por allowlists server-side; a prévia usa `iframe` sandbox e o seletor público recebe somente modelos publicados.
+- `/admin/login` autentica contra a API e `/admin` verifica a sessão. A área permite criar e editar rascunhos, pré-visualizar PDFs gerados no servidor, publicar/despublicar e excluir modelos inativos. HTML/CSS passam por allowlists server-side; o PDF gerado é exibido pelo visualizador nativo do navegador sem `sandbox` (que bloqueia o plugin PDF do Chrome), e o seletor público recebe somente modelos publicados.
 
 ### Executar localmente
 
