@@ -430,6 +430,117 @@ test.describe('Geração e regeneração com IA', () => {
 });
 
 test.describe('Acesso administrativo', () => {
+  test('cria, edita, pré-visualiza, publica, despublica e remove modelos PDF', async ({ page }) => {
+    const templateId = 'c332c4b2-80f3-4ad0-9131-2bf9055acc01';
+    const templates = [];
+    await page.route('**/api/v1/admin/session', async (route) => {
+      if (route.request().method() === 'POST') {
+        await fulfillJson(route, 200, { authenticated: true, expiresAt: new Date().toISOString() });
+        return;
+      }
+      await fulfillJson(route, 200, { authenticated: false });
+    });
+    await page.route('**/api/v1/admin/templates**', async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const method = request.method();
+      if (path === '/api/v1/admin/templates' && method === 'GET') {
+        await fulfillJson(route, 200, { templates });
+        return;
+      }
+      if (path === '/api/v1/admin/templates' && method === 'POST') {
+        const input = request.postDataJSON();
+        const template = { ...input, id: templateId, status: 'draft', version: 1 };
+        templates.push(template);
+        await fulfillJson(route, 201, template);
+        return;
+      }
+      if (path.endsWith('/preview') && method === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/pdf',
+          body: Buffer.from('%PDF-1.4 preview'),
+        });
+        return;
+      }
+      if (path.endsWith('/publish') && method === 'POST') {
+        templates[0].status = 'published';
+        await fulfillJson(route, 200, templates[0]);
+        return;
+      }
+      if (path.endsWith('/unpublish') && method === 'POST') {
+        templates[0].status = 'draft';
+        await fulfillJson(route, 200, templates[0]);
+        return;
+      }
+      if (method === 'PUT') {
+        Object.assign(templates[0], request.postDataJSON(), { version: 2 });
+        await fulfillJson(route, 200, templates[0]);
+        return;
+      }
+      if (method === 'DELETE') {
+        templates.splice(0, 1);
+        await fulfillJson(route, 200, { deleted: true, id: templateId });
+        return;
+      }
+      await fulfillJson(route, 404, { error: { code: 'NOT_FOUND', message: 'Rota de teste não encontrada.' } });
+    });
+    await page.route('**/api/v1/templates', async (route) => {
+      await fulfillJson(route, 200, {
+        templates: [
+          ...publishedTemplates.filter((template) => template.id === 'system-default'),
+          ...templates.filter((template) => template.status === 'published'),
+        ],
+      });
+    });
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Acesso administrativo' }).click();
+    await page.getByLabel('Usuário').fill('admin');
+    await page.getByLabel('Senha').fill('senha-temporaria');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await expect(page.getByTestId('gerenciador-modelos')).toContainText('Nenhum modelo cadastrado.');
+
+    await page.getByLabel('Nome do modelo').fill('Modelo de demonstração');
+    await page.getByLabel('Descrição do modelo').fill('Descrição inicial.');
+    await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+    const templateCard = page.getByTestId(`modelo-admin-${templateId}`);
+    await expect(templateCard).toContainText('Modelo de demonstração');
+    await templateCard.getByRole('button', { name: 'Editar' }).click();
+    await page.getByLabel('Nome do modelo').fill('Modelo revisado');
+    await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+    await expect(templateCard).toContainText('Modelo revisado');
+    await page.getByRole('button', { name: 'Salvar e pré-visualizar PDF' }).click();
+    await expect(page.getByTestId('previa-modelo-pdf')).toBeVisible();
+    await expect(page.getByTitle('Prévia isolada do modelo PDF')).toHaveAttribute('sandbox', '');
+    await page.getByRole('button', { name: 'Fechar prévia' }).click();
+
+    await templateCard.getByRole('button', { name: 'Publicar' }).click();
+    await expect(templateCard).toContainText('Publicado');
+    await expect(templateCard.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await expect(page.getByLabel('Modelo de PDF')).toContainText('Modelo revisado');
+    await page.keyboard.press('Escape');
+
+    await page.goto('/admin');
+    await expect(page.getByTestId(`modelo-admin-${templateId}`)).toBeVisible();
+    const updatedCard = page.getByTestId(`modelo-admin-${templateId}`);
+    await updatedCard.getByRole('button', { name: 'Despublicar' }).click();
+    await expect(updatedCard).toContainText('Inativo / rascunho');
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await expect(page.getByLabel('Modelo de PDF')).not.toContainText('Modelo revisado');
+    await page.keyboard.press('Escape');
+
+    await page.goto('/admin');
+    const inactiveCard = page.getByTestId(`modelo-admin-${templateId}`);
+    page.once('dialog', (dialog) => dialog.accept());
+    await inactiveCard.getByRole('button', { name: 'Excluir rascunho' }).click();
+    await expect(page.getByTestId(`modelo-admin-${templateId}`)).toHaveCount(0);
+  });
+
   test('envia credenciais à API, abre a área e encerra a sessão', async ({ page }) => {
     await page.route('**/api/v1/admin/session', async (route) => {
       if (route.request().method() === 'POST') {

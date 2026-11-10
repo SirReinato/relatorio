@@ -24,7 +24,7 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - A landing abre um modal acessível para modalidade, formatos e modelos publicados. A modalidade IA coleta tema e parâmetros opcionais, envia a solicitação explicitamente à API, permite cancelar/tentar novamente e valida a resposta antes de criar o draft.
 - A modalidade manual e os drafts gerados por IA usam o mesmo editor de relatório com seções, detalhes, imagens e prévia. Drafts e imagens são salvos no IndexedDB deste navegador e podem ser retomados pela Home ou pela rota com ID. A regeneração de seção apresenta uma proposta para aceitar ou descartar, preservando anexos, outras seções e edições concorrentes.
 - O armazenamento local mantém até 10 rascunhos; aceita JPEG/PNG/WebP até 5 MiB por imagem e 20 MiB por relatório, com erros explícitos quando quota ou armazenamento não permitem salvar.
-- `/admin/login` autentica contra a API e `/admin` verifica a sessão; a gestão de modelos será ampliada na Etapa 6.
+- `/admin/login` autentica contra a API e `/admin` verifica a sessão. A área permite criar e editar rascunhos, pré-visualizar PDFs gerados no servidor, publicar/despublicar e excluir modelos inativos. HTML/CSS passam por allowlists server-side; a prévia usa `iframe` sandbox e o seletor público recebe somente modelos publicados.
 
 ### Executar localmente
 

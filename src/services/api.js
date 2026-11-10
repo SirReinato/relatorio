@@ -151,6 +151,40 @@ async function requestApi(path, { method = 'GET', body, signal } = {}) {
   return result;
 }
 
+async function requestApiBlob(path, { method = 'GET' } = {}) {
+  let response;
+  try {
+    response = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/pdf' },
+    });
+  } catch {
+    throw new Error('Não foi possível conectar à API. Tente novamente.');
+  }
+
+  if (!response.ok) {
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error('A API retornou uma resposta inválida.');
+    }
+    throw new ApiRequestError(
+      result.error?.message || 'Não foi possível concluir a solicitação.',
+      response.status,
+      result.error?.code,
+      result.error?.retryable,
+    );
+  }
+
+  const blob = await response.blob();
+  if (!blob.type.startsWith('application/pdf')) {
+    throw new Error('A API retornou uma prévia em formato inválido.');
+  }
+  return blob;
+}
+
 export async function fetchPublicTemplates() {
   const result = await requestApi('/api/v1/templates');
   if (!Array.isArray(result.templates)) {
@@ -168,6 +202,36 @@ export function loginAdmin(credentials) {
 
 export function fetchAdminTemplates() {
   return requestApi('/api/v1/admin/templates');
+}
+
+export function createAdminTemplate(template) {
+  return requestApi('/api/v1/admin/templates', { method: 'POST', body: template });
+}
+
+export function updateAdminTemplate(id, template) {
+  return requestApi(`/api/v1/admin/templates/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: template,
+  });
+}
+
+export function publishAdminTemplate(id) {
+  return requestApi(`/api/v1/admin/templates/${encodeURIComponent(id)}/publish`, { method: 'POST' });
+}
+
+export function unpublishAdminTemplate(id) {
+  return requestApi(`/api/v1/admin/templates/${encodeURIComponent(id)}/unpublish`, { method: 'POST' });
+}
+
+export function deleteAdminTemplate(id) {
+  return requestApi(`/api/v1/admin/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function previewAdminTemplate(id) {
+  return requestApiBlob(
+    `/api/v1/admin/templates/${encodeURIComponent(id)}/preview`,
+    { method: 'POST' },
+  );
 }
 
 export function logoutAdmin() {

@@ -266,6 +266,7 @@ meu-projeto/
     │
     ├── components/
     │   ├── LocalDraftList/    # Lista, retomada e remoção de rascunhos locais na Home
+    │   ├── AdminTemplateManager/ # CRUD administrativo, publicação e prévia isolada de PDFs
     │   ├── ManualReportEditor/# Editor compartilhado, seções, anexos, prévia e propostas de IA
     │   ├── ReportGenerationForm/ # Parâmetros, cancelamento e estados da geração de relatório
     │   └── StartReportModal/  # Modal acessível para modalidade, formatos e modelos PDF
@@ -459,6 +460,7 @@ As escolhas detalhadas, contratos, limites iniciais, comparações e pendências
 5. **Templates PDF não executáveis**: templates administrativos não executam JavaScript, eventos inline, recursos remotos ou componentes React; valores do relatório devem ser escapados e renderização isolada conforme a política documentada.
 6. **Erro não destrutivo**: falhas de persistência local, IA, template ou exportação devem ser explícitas e preservar o rascunho; geração concorrente nunca sobrescreve silenciosamente edições posteriores.
 7. **Sem segredo no client**: chaves do provedor de IA e credenciais admin permanecem em configuração server-side, nunca em código versionado ou variáveis `VITE_`.
+8. **Ciclo de vida de templates PDF**: somente modelos publicados aparecem no seletor público; modelos publicados precisam ser despublicados antes de edição ou exclusão, e a prévia administrativa é exibida em `iframe` com sandbox.
 8. **Regeneração não destrutiva**: propostas de IA para uma seção são revisadas antes de aplicar; edições concorrentes invalidam respostas obsoletas, e anexos e seções não alvo permanecem inalterados.
 9. **Limites da API**: schemas rejeitam payloads inválidos; uploads aceitam JPEG/PNG/WebP e têm limites de arquivo/pixels/total; IA e exportação têm rate limit por IP.
 10. **Templates PDF**: HTML/CSS é limitado por allowlist, sem scripts, handlers, recursos remotos, URLs CSS ou JavaScript no Chromium; templates publicados são os únicos listados publicamente.
@@ -695,3 +697,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-09 | GitHub Copilot | Implementação da Etapa 3: landing responsiva, modal nativa acessível, seleção de formatos/modelos publicados, rotas de início e administração, login por sessão e testes E2E. |
 | 2026-11-09 | GitHub Copilot | Implementação da Etapa 4: editor manual e prévia, edição/reordenação de seções, anexos validados, IndexedDB para rascunhos/imagens, retomada por ID, testes E2E e documentação. |
 | 2026-11-10 | GitHub Copilot | Implementação da Etapa 5: geração assistida integrada ao editor compartilhado, validação cliente/servidor, cancelamento, retry, propostas de regeneração não destrutivas, testes API/E2E e atualização da documentação. |
+| 2026-11-10 | GitHub Copilot | Implementação da Etapa 6: CRUD e ciclo de publicação de templates PDF, exclusão protegida de rascunhos, prévia isolada, sincronização com seletor público, cobertura API/E2E e preservação do estado do formulário durante atualizações da lista. |

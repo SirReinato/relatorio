@@ -97,6 +97,18 @@ describe('API do protótipo', () => {
   it('protege administração, cria modelo rascunho e publica apenas após login', async () => {
     const unauthorized = await app.inject({ method: 'GET', url: '/api/v1/admin/templates' });
     assert.equal(unauthorized.statusCode, 401);
+    const unauthorizedDelete = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/templates/${randomUUID()}`,
+      headers: { origin },
+    });
+    assert.equal(unauthorizedDelete.statusCode, 401);
+    const unauthorizedPreview = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${randomUUID()}/preview`,
+      headers: { origin },
+    });
+    assert.equal(unauthorizedPreview.statusCode, 401);
 
     const login = await app.inject({
       method: 'POST',
@@ -120,17 +132,66 @@ describe('API do protótipo', () => {
     });
     assert.equal(create.statusCode, 201);
     assert.equal(create.json().status, 'draft');
+    const templateId = create.json().id;
+
+    const update = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/templates/${templateId}`,
+      headers: { origin, cookie },
+      payload: {
+        name: 'Modelo simples revisado',
+        description: 'Descrição atualizada.',
+        html: '<h1>{{report.title}}</h1>{{report.sections}}',
+        css: 'h1 { color: #172033; }',
+      },
+    });
+    assert.equal(update.statusCode, 200);
+    assert.equal(update.json().name, 'Modelo simples revisado');
+
+    const preview = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${templateId}/preview`,
+      headers: { origin, cookie },
+    });
+    assert.equal(preview.statusCode, 200, preview.body);
+    assert.equal(preview.headers['content-type'], 'application/pdf');
+    assert.equal(preview.rawPayload.subarray(0, 5).toString('ascii'), '%PDF-');
 
     const publish = await app.inject({
       method: 'POST',
-      url: `/api/v1/admin/templates/${create.json().id}/publish`,
+      url: `/api/v1/admin/templates/${templateId}/publish`,
       headers: { origin, cookie },
     });
     assert.equal(publish.statusCode, 200);
     assert.equal(publish.json().status, 'published');
 
     const publicTemplates = await app.inject({ method: 'GET', url: '/api/v1/templates' });
-    assert.ok(publicTemplates.json().templates.some((template) => template.id === create.json().id));
+    assert.ok(publicTemplates.json().templates.some((template) => template.id === templateId));
+
+    const publishedDelete = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/templates/${templateId}`,
+      headers: { origin, cookie },
+    });
+    assert.equal(publishedDelete.statusCode, 409);
+
+    const unpublish = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${templateId}/unpublish`,
+      headers: { origin, cookie },
+    });
+    assert.equal(unpublish.statusCode, 200);
+    assert.equal(unpublish.json().status, 'draft');
+    const publicTemplatesAfterUnpublish = await app.inject({ method: 'GET', url: '/api/v1/templates' });
+    assert.equal(publicTemplatesAfterUnpublish.json().templates.some((template) => template.id === templateId), false);
+
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/templates/${templateId}`,
+      headers: { origin, cookie },
+    });
+    assert.equal(remove.statusCode, 200);
+    assert.equal(remove.json().deleted, true);
 
     const changePassword = await app.inject({
       method: 'PUT',
