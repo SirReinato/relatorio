@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import LocalDraftList from '../../components/LocalDraftList/index.jsx';
 import StartReportModal from '../../components/StartReportModal/index.jsx';
 
 export const ContainerHomeStl = styled.div`
@@ -172,6 +173,8 @@ export default function Home() {
           </ListaEtapasStl>
         </PainelEtapasStl>
       </BannerHomeStl>
+
+      <LocalDraftList />
 
       <StartReportModal
         isOpen={isModalOpen}

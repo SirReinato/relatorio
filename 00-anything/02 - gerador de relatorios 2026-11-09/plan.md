@@ -13,9 +13,9 @@ Implementar a experiência em etapas, começando por uma decisão técnica expl�
 ## 2. Estado atual do projeto
 
 - SPA inicializada com Vite, React 18, `react-router-dom`, styled-components, ESLint e Playwright.
-- A rota `/` renderiza `MainGeral` e uma página Home placeholder; não há ainda fluxos de produto.
-- Existem pastas arquiteturais para páginas, componentes, hooks, context, services, utils e testes E2E.
-- Não há API/backend, banco de dados, autenticação, integração com IA ou persistência de produto.
+- A rota `/` apresenta a landing page; `/relatorios/novo` oferece o início manual ou por IA, e `/relatorios/novo/:draftId` retoma um rascunho local.
+- A API de protótipo, sessão administrativa e exportadores existem; o fluxo manual agora persiste drafts e imagens no IndexedDB.
+- Geração de IA no editor, sincronização server-side de relatórios e exportação final permanecem em etapas posteriores.
 - O `AGENTS.md` exige que alterações estruturais atualizem sua árvore/histórico, o `README.md` quando aplicável e o grafo graphify; também exige branch de feature, validação e isolamento de artefatos de planejamento em `00-anything/`.
 
 ## 3. Requisitos e decisões confirmados
@@ -136,6 +136,8 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 
 ### Etapa 4 — `feat(relatorios): implementar editor manual e edicao por secoes`
 
+**Status:** Implementada. O editor manual, os anexos validados, a prévia e a persistência/retomada local estão disponíveis.
+
 **Objetivo funcional:** Permitir criar e revisar um relatório estruturado sem IA, com o mesmo formato de dados que será usado na geração assistida.
 
 **Passo a passo técnico:**
@@ -152,12 +154,16 @@ As etapas abaixo formam o backlog inicial. Cada uma pode ser copiada para um age
 - Entradas e imagens são validadas e erros de persistência não apagam o conteúdo atual em tela.
 - Fluxo crítico de criação/edição/persistência está coberto com Playwright.
 
+**Entrega realizada:** Editor manual ligado ao contrato `ReportDraft`, com campos opcionais, até 20 seções editáveis/reordenáveis, detalhes, imagens JPEG/PNG/WebP verificadas por assinatura e decodificação (5 MiB por arquivo, 20 MiB por relatório), legenda, substituição/remoção, validação e prévia. Drafts e blobs são mantidos em IndexedDB, limitados a 10 rascunhos; a lista inicial na Home retoma/remove drafts, e erros de quota/indisponibilidade são explícitos sem apagar o conteúdo em memória. A rota identificada pelo ID permite recarregar e retomar. Nenhum dado é enviado ao servidor nesta etapa.
+
 **Prompt copiável:**  
 > Implemente o fluxo manual e editor por seções descritos na Etapa 4 de `plan.md`, usando o contrato de relatório definido na Etapa 1. Inclua edição/reordenação, detalhes importantes, upload validado com legenda, prévia e persistência local retomável. Preserve os dados na tela diante de falhas de persistência. Não implemente chamadas de IA ou exportação final. Siga `AGENTS.md` e cubra o fluxo crítico com Playwright.
 
 ### Etapa 5 — `feat(ia): gerar relatorios e regenerar secoes`
 
 **Objetivo funcional:** Gerar um relatório estruturado a partir do tema e dos parâmetros opcionais, e permitir regenerar uma seção mantendo o restante do trabalho.
+
+**Nota de integração:** O fluxo manual da Etapa 4 já grava `ReportDraft` em IndexedDB e abre o mesmo editor. A geração deve popular esse contrato/editor sem sobrescrever edições ou imagens existentes.
 
 **Passo a passo técnico:**
 1. Ligar o fluxo “por IA” da modal ao endpoint seguro definido na Etapa 2.

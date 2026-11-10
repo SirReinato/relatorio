@@ -22,6 +22,8 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - Templates PDF HTML/CSS usam allowlist e renderização sem JavaScript ou acesso à rede.
 - Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
 - A landing abre um modal acessível para modalidade, formatos e modelos publicados. O início do relatório resume as escolhas sem executar geração ou exportação.
+- A modalidade manual abre um editor de relatório com seções, detalhes, imagens e prévia. Drafts e imagens são salvos no IndexedDB deste navegador, podem ser retomados pela Home ou pela rota com ID e não são enviados ao servidor durante a edição.
+- O armazenamento local mantém até 10 rascunhos; aceita JPEG/PNG/WebP até 5 MiB por imagem e 20 MiB por relatório, com erros explícitos quando quota ou armazenamento não permitem salvar.
 - `/admin/login` autentica contra a API e `/admin` verifica a sessão; a gestão de modelos será ampliada na Etapa 6.
 
 ### Executar localmente
@@ -43,7 +45,7 @@ O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a c
 | CRUD/publicação/preview de modelos | `/api/v1/admin/templates` |
 | Exportar PDF, DOCX ou Markdown | `POST /api/v1/exports/{pdf,docx,markdown}` |
 
-Rotas da SPA: `/` (landing), `/relatorios/novo` (resumo do início do fluxo), `/admin/login` e `/admin` (área administrativa inicial). Edição, geração e CRUD completo de modelos seguem nas etapas posteriores.
+Rotas da SPA: `/` (landing e retomada de drafts), `/relatorios/novo` (início manual ou resumo do fluxo IA), `/relatorios/novo/:draftId` (abrir/retomar editor manual), `/admin/login` e `/admin` (área administrativa inicial). Geração de IA e CRUD completo de modelos seguem nas etapas posteriores.
 
 Teste de API: `npm run test:api`. Os dados SQLite locais ficam em `data/`, ignorada pelo Git.
 

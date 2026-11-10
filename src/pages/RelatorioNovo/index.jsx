@@ -1,5 +1,8 @@
-import { Link, useLocation } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import styled from 'styled-components';
+
+const ManualReportEditor = lazy(() => import('../../components/ManualReportEditor/index.jsx'));
 
 const formatLabels = {
   pdf: 'PDF',
@@ -73,6 +76,16 @@ const LinkVoltarStl = styled(Link)`
 
 export default function RelatorioNovo() {
   const { state } = useLocation();
+  const { draftId: routeDraftId } = useParams();
+  const draftId = state?.draftId || routeDraftId;
+  if (state?.mode === 'manual' || draftId) {
+    return (
+      <Suspense fallback={<ConteudoInicioStl role="status">Abrindo o editor manual…</ConteudoInicioStl>}>
+        <ManualReportEditor configuration={state} draftId={draftId} />
+      </Suspense>
+    );
+  }
+
   const selectedFormats = Array.isArray(state?.selectedFormats)
     ? state.selectedFormats.filter((format) => formatLabels[format])
     : [];
