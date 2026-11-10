@@ -97,6 +97,22 @@ describe('API do protótipo', () => {
   it('protege administração, cria modelo rascunho e publica apenas após login', async () => {
     const unauthorized = await app.inject({ method: 'GET', url: '/api/v1/admin/templates' });
     assert.equal(unauthorized.statusCode, 401);
+    const missingOrigin = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    assert.equal(missingOrigin.statusCode, 403);
+    assert.equal(missingOrigin.json().error.code, 'ORIGIN_REQUIRED');
+    const foreignOrigin = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      headers: { origin: 'https://attacker.example' },
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    assert.equal(foreignOrigin.statusCode, 403);
+    assert.equal(foreignOrigin.json().error.code, 'ORIGIN_INVALID');
+
     const unauthorizedDelete = await app.inject({
       method: 'DELETE',
       url: `/api/v1/admin/templates/${randomUUID()}`,
