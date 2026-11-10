@@ -301,9 +301,8 @@ export default function AdminTemplateManager({
             <BotaoModeloStl type="button" onClick={() => setPreviewUrl('')}>Fechar prévia</BotaoModeloStl>
           </CabecalhoCartaoModeloStl>
           <FramePreviaModeloStl
-            title="Prévia isolada do modelo PDF"
+            title="Visualizador PDF do modelo"
             src={previewUrl}
-            sandbox=""
           />
         </PainelPreviaModeloStl>
       )}

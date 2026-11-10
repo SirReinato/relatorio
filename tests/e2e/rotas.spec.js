@@ -512,7 +512,10 @@ test.describe('Acesso administrativo', () => {
     await expect(templateCard).toContainText('Modelo revisado');
     await page.getByRole('button', { name: 'Salvar e pré-visualizar PDF' }).click();
     await expect(page.getByTestId('previa-modelo-pdf')).toBeVisible();
-    await expect(page.getByTitle('Prévia isolada do modelo PDF')).toHaveAttribute('sandbox', '');
+    const pdfViewer = page.getByTitle('Visualizador PDF do modelo');
+    await expect(pdfViewer).toBeVisible();
+    await expect(pdfViewer).not.toHaveAttribute('sandbox');
+    await expect(pdfViewer).toHaveAttribute('src', /^blob:/);
     await page.getByRole('button', { name: 'Fechar prévia' }).click();
 
     await templateCard.getByRole('button', { name: 'Publicar' }).click();
