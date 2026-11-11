@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { createAiService } from '../../api/ai.js';
 import { createApi } from '../../api/app.js';
 import { renderPdfHtml, sanitizeTemplate, systemTemplate } from '../../api/exporters.js';
+import { compileThemeToHtmlAndCss } from '../../src/components/AdminTemplateManager/themeCompiler.js';
 
 const origin = 'http://localhost:5173';
 const brief = {
@@ -658,5 +659,284 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.match(response.headers['content-type'], /^application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document/);
     assert.match(response.headers['content-disposition'], /\.docx"/);
     assert.equal(response.body.slice(0, 2), 'PK');
+  });
+
+  it('aceita multipart/form-data com anexos analíticos e injeta contexto no relatório gerado', async () => {
+    const boundary = 'relatorio-ai-multipart-boundary';
+    const csvContent = 'Mes,Vendas,Margem\nJaneiro,15000,32%\nFevereiro,18500,35%';
+    const payloadJson = {
+      topic: 'Desempenho Comercial Q1',
+      brief,
+    };
+
+    const multipart = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="payload"',
+      'Content-Type: application/json',
+      '',
+      JSON.stringify(payloadJson),
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="attachment:1"; filename="vendas_q1.csv"',
+      'Content-Type: text/csv',
+      '',
+      csvContent,
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: multipart,
+    });
+
+    assert.equal(response.statusCode, 200, response.body);
+    const report = response.json();
+    assert.equal(report.topic, 'Desempenho Comercial Q1');
+    assert.equal(report.sections.length, 2);
+    assert.equal(report.sections[1].title, 'Análise documental e evidências');
+    assert.match(report.sections[1].body, /vendas_q1\.csv/);
+    assert.match(report.sections[1].body, /Janeiro/);
+    assert.match(report.sections[1].body, /15000/);
+    assert.equal(report.sections[1].importantDetails.length, 1);
+    assert.match(report.sections[1].importantDetails[0], /vendas_q1\.csv/);
+  });
+
+  it('rejeita envio multipart com mais de 3 arquivos anexos com TOO_MANY_FILES', async () => {
+    const boundary = 'relatorio-ai-many-boundary';
+    const payloadJson = { topic: 'Relatório Excessivo', brief };
+
+    const parts = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="payload"',
+      'Content-Type: application/json',
+      '',
+      JSON.stringify(payloadJson),
+    ];
+
+    for (let i = 1; i <= 4; i += 1) {
+      parts.push(
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file_${i}"; filename="doc_${i}.csv"`,
+        'Content-Type: text/csv',
+        '',
+        `col1,col2\nval${i},data${i}`,
+      );
+    }
+    parts.push(`--${boundary}--`, '');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: parts.join('\r\n'),
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, 'TOO_MANY_FILES');
+  });
+
+  it('rejeita anexo com formato não suportado com INVALID_ATTACHMENT', async () => {
+    const boundary = 'relatorio-ai-unsupported-boundary';
+    const payloadJson = { topic: 'Arquivo Invalido', brief };
+
+    const multipart = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="payload"',
+      'Content-Type: application/json',
+      '',
+      JSON.stringify(payloadJson),
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="script"; filename="malicious.exe"',
+      'Content-Type: application/x-msdownload',
+      '',
+      'MZbinarioexecutavel',
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: multipart,
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, 'INVALID_ATTACHMENT');
+  });
+
+  it('rejeita envio multipart com arquivos excedendo o limite cumulativo de 15 MiB com FILE_TOO_LARGE', async () => {
+    const boundary = 'relatorio-ai-large-boundary';
+    const payloadJson = { topic: 'Arquivo Gigante', brief };
+
+    const file8Mb = Buffer.alloc(8 * 1024 * 1024, 0x61);
+
+    const parts = [
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payloadJson)}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file_1"; filename="grande_1.csv"\r\nContent-Type: text/csv\r\n\r\n`),
+      file8Mb,
+      Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="file_2"; filename="grande_2.csv"\r\nContent-Type: text/csv\r\n\r\n`),
+      file8Mb,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ];
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: Buffer.concat(parts),
+    });
+
+    assert.equal(response.statusCode, 413);
+    assert.equal(response.json().error.code, 'FILE_TOO_LARGE');
+  });
+
+  it('semeia os 5 modelos canonicos publicados no banco de dados', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/templates' });
+    assert.equal(response.statusCode, 200);
+    const { templates } = response.json();
+    assert.ok(templates.length >= 5);
+
+    const canonicalIds = [
+      'system-executivo',
+      'system-tecnico',
+      'system-comercial',
+      'system-minimalista',
+      'system-painel-executivo',
+    ];
+    for (const id of canonicalIds) {
+      const found = templates.find((t) => t.id === id);
+      assert.ok(found, `Modelo ${id} não encontrado na listagem pública`);
+      assert.equal(found.status, 'published');
+    }
+  });
+
+  it('permite ao administrador duplicar/clonar qualquer modelo existente como rascunho', async () => {
+    const missingOrigin = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates/system-executivo/clone',
+    });
+    assert.equal(missingOrigin.statusCode, 403);
+    assert.equal(missingOrigin.json().error.code, 'ORIGIN_REQUIRED');
+
+    const unauthorized = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates/system-executivo/clone',
+      headers: { origin },
+    });
+    assert.equal(unauthorized.statusCode, 401);
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      headers: { origin },
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    assert.equal(login.statusCode, 200);
+    const cookie = login.headers['set-cookie'].split(';')[0];
+
+    const notFound = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${randomUUID()}/clone`,
+      headers: { origin, cookie },
+    });
+    assert.equal(notFound.statusCode, 404);
+    assert.equal(notFound.json().error.code, 'TEMPLATE_NOT_FOUND');
+
+    const cloneResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates/system-executivo/clone',
+      headers: { origin, cookie },
+    });
+    assert.equal(cloneResponse.statusCode, 201);
+    const cloned = cloneResponse.json();
+    assert.equal(cloned.name, 'Executivo Moderno (Cópia)');
+    assert.equal(cloned.status, 'draft');
+    assert.equal(cloned.version, 1);
+    assert.notEqual(cloned.id, 'system-executivo');
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/templates',
+      headers: { origin, cookie },
+    });
+    assert.equal(list.statusCode, 200);
+    const adminTemplates = list.json().templates;
+    const foundCloned = adminTemplates.find((t) => t.id === cloned.id);
+    assert.ok(foundCloned);
+    assert.equal(foundCloned.status, 'draft');
+  });
+
+  it('valida que templates gerados pelo Theme Builder passam por sanitizeTemplate e geram PDF prévio', async () => {
+    const compiled = compileThemeToHtmlAndCss({
+      primaryColor: '#7c3aed',
+      secondaryColor: '#db2777',
+      textColor: '#18181b',
+      backgroundColor: '#fafafa',
+      fontFamily: 'Helvetica, sans-serif',
+      fontSizeBase: '14px',
+      coverLayout: 'split-bar',
+      pageMargins: 'wide',
+      headerBadgeText: 'RELATÓRIO FINANCEIRO',
+      footerFormat: 'confidential-page',
+    });
+
+    const sanitized = sanitizeTemplate(compiled);
+    assert.ok(sanitized.html.includes('header-split'));
+    assert.ok(sanitized.html.includes('RELATÓRIO FINANCEIRO'));
+    assert.ok(sanitized.css.includes('#7c3aed'));
+    assert.ok(sanitized.css.includes('25mm 20mm 25mm 20mm'));
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      headers: { origin },
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    const cookie = login.headers['set-cookie'].split(';')[0];
+
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates',
+      headers: { origin, cookie },
+      payload: {
+        name: 'Modelo Theme Builder',
+        description: 'Gerado pelo Theme Builder visual',
+        html: compiled.html,
+        css: compiled.css,
+      },
+    });
+    assert.equal(create.statusCode, 201);
+    const created = create.json();
+    assert.equal(created.name, 'Modelo Theme Builder');
+
+    const preview = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${created.id}/preview`,
+      headers: { origin, cookie },
+    });
+    assert.equal(preview.statusCode, 200);
+    assert.equal(preview.headers['content-type'], 'application/pdf');
+    assert.ok(preview.rawPayload.length > 1000);
+  });
+
+  it('renderiza tabelas Markdown, blocos de citação e callouts de destaque no HTML do PDF', () => {
+    const report = makeReport();
+    report.sections[0].body = `Contexto geral antes da tabela.\n\n| Chamado | Colaborador | Recurso |\n|---|---|---|\n| #5740 | Leiciane Sousa | Sankhya DP |\n| #5739 | Thais Garcez | Pastas de Rede |\n\n> Diretriz operacional: Atenção ao preenchimento de chamados.`;
+    report.sections[0].importantDetails = ['Verificar permissão no AD', 'Priorizar chamado #5740'];
+
+    const html = renderPdfHtml(report, systemTemplate);
+    assert.ok(html.includes('<table>'));
+    assert.ok(html.includes('<th>Chamado</th>'));
+    assert.ok(html.includes('<td>#5740</td>'));
+    assert.ok(html.includes('<td>Sankhya DP</td>'));
+    assert.ok(html.includes('<blockquote>'));
+    assert.ok(html.includes('Diretriz operacional: Atenção ao preenchimento de chamados.'));
+    assert.ok(html.includes('class="callout-card"'));
+    assert.ok(html.includes('class="callout-tag"'));
+    assert.ok(html.includes('Destaque Operacional &amp; Pontos de Atenção'));
+    assert.ok(html.includes('Priorizar chamado #5740'));
   });
 });

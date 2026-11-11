@@ -249,3 +249,23 @@ export const MensagemErroStl = styled.div`
 export const StatusSalvamentoStl = styled.p`
   color: ${({ $isError, theme }) => ($isError ? theme.colors.danger : theme.colors.textSecondary)};
 `;
+
+export const AlertaModeloStl = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.xs};
+  padding: ${({ theme }) => theme.spacing.md};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  background: rgba(210, 153, 34, 0.15);
+  border: 1px solid #d29922;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+`;
+
+export const BlocoModeloStl = styled.div`
+  display: grid;
+  gap: ${({ theme }) => theme.spacing.xs};
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.surfaceAlt};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+`;

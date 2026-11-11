@@ -276,6 +276,60 @@ test.describe('Landing page e início do relatório', () => {
     await expect(page.getByText('Nenhum rascunho salvo ainda.')).toBeVisible();
   });
 
+  test('altera o modelo de PDF dinamicamente, sincroniza no IndexedDB e trata modelo despublicado', async ({ page }) => {
+    let templatesList = [
+      { id: 'system-default', name: 'Padrão do Sistema', status: 'published' },
+      { id: 'modelo-executivo', name: 'Executivo Corporativo', status: 'published' },
+      { id: 'modelo-tecnico', name: 'Laudo Técnico', status: 'published' },
+    ];
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: templatesList }));
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await page.getByLabel('Título do relatório').fill('Relatório com Modelo Dinâmico');
+    await page.getByLabel('Tema do relatório').fill('Arquitetura de Software');
+
+    // 1. Verifica modelo padrão inicial
+    const selectModelo = page.getByLabel('Selecionar modelo de PDF');
+    await expect(selectModelo).toBeVisible();
+    await expect(selectModelo).toHaveValue('system-default');
+
+    // 2. Troca o modelo para "Executivo Corporativo"
+    await selectModelo.selectOption('modelo-executivo');
+    await expect(page.getByTestId('modelo-pdf')).toContainText('Executivo Corporativo');
+    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador');
+
+    // 3. Abre a prévia e confere que reflete o modelo
+    await page.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(page.getByTestId('previa-relatorio')).toBeVisible();
+    await expect(page.getByTestId('previa-modelo-pdf')).toContainText('Executivo Corporativo');
+    await page.getByRole('button', { name: 'Fechar prévia' }).click();
+
+    // 4. Recarrega a página (F5) e verifica se persiste no IndexedDB
+    await page.reload();
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório com Modelo Dinâmico');
+    await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('modelo-executivo');
+    await expect(page.getByTestId('modelo-pdf')).toContainText('Executivo Corporativo');
+
+    // 5. Simula que o modelo foi despublicado e usuário acessa o rascunho
+    templatesList = [
+      { id: 'system-default', name: 'Padrão do Sistema', status: 'published' },
+    ];
+    await page.reload();
+    await expect(page.getByTestId('alerta-modelo-despublicado')).toBeVisible();
+    await expect(page.getByTestId('alerta-modelo-despublicado')).toContainText('modelo-executivo');
+
+    // 6. Clica para reverter para o modelo padrão
+    await page.getByRole('button', { name: 'Reverter para modelo padrão' }).click();
+    await expect(page.getByTestId('alerta-modelo-despublicado')).not.toBeVisible();
+    await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('system-default');
+    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador', { timeout: 15000 });
+  });
+
   test('mantém o conteúdo em memória e sinaliza quando IndexedDB não está disponível', async ({ page }) => {
     await page.addInitScript(() => Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined }));
     await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: [] }));
@@ -520,6 +574,128 @@ test.describe('Geração e regeneração com IA', () => {
     await expect(page.getByLabel('Conteúdo da seção 2')).toHaveValue('Conteúdo independente.');
     expect(requestCount).toBe(2);
   });
+
+  test('valida e envia anexos na criação com IA, exibindo chips, remoção e feedback de limites', async ({ page }) => {
+    let requestContentType = '';
+    let requestPostData = '';
+
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: publishedTemplates }));
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      requestContentType = route.request().headers()['content-type'] || '';
+      requestPostData = route.request().postData() || '';
+      await fulfillJson(route, 200, {
+        schemaVersion: 1,
+        id: '99aa88bb-1122-4344-8566-778899aabbcc',
+        title: 'Relatório a partir de Anexos',
+        topic: 'Desempenho Financeiro Anual',
+        brief: { objective: null, audience: null, desiredLength: 'medium', tone: null, references: [] },
+        sections: [{
+          id: '11aa22bb-33cc-44dd-85ee-66ff778899aa',
+          title: 'Resultados Consolidados',
+          body: 'Conforme indicado nas planilhas e relatórios anexados, o desempenho superou a meta.',
+          importantDetails: ['Fonte: dados.csv'],
+          images: [],
+        }],
+        selectedFormats: ['pdf'],
+        pdfTemplateId: 'system-default',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Começar com IA/ }).check();
+    await dialog.getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page.getByTestId('formulario-geracao-ia')).toBeVisible();
+    await page.getByLabel('Tema para geração').fill('Desempenho Financeiro Anual');
+
+    // 1. Tenta anexar arquivo com extensão não permitida
+    const fileInput = page.getByLabel('Selecionar arquivos de contexto');
+    await fileInput.setInputFiles({
+      name: 'script.exe',
+      mimeType: 'application/octet-stream',
+      buffer: Buffer.from('binario-proibido'),
+    });
+    await expect(page.getByTestId('erro-anexo')).toContainText('não é suportado');
+
+    // 2. Tenta anexar imagem maior que 5 MiB
+    await fileInput.setInputFiles({
+      name: 'imagem-pesada.png',
+      mimeType: 'image/png',
+      buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
+    });
+    await expect(page.getByTestId('erro-anexo')).toContainText('excede o tamanho máximo de 5 MiB');
+
+    // 3. Adiciona 2 arquivos válidos (PDF e XLSX)
+    await fileInput.setInputFiles([
+      {
+        name: 'balanco.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 mock pdf content'),
+      },
+      {
+        name: 'vendas_q1.xlsx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: Buffer.alloc(1024 * 50),
+      },
+    ]);
+    await expect(page.getByTestId('erro-anexo')).toHaveCount(0);
+    await expect(page.getByTestId('lista-anexos-ia')).toBeVisible();
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('balanco.pdf');
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('PDF');
+    await expect(page.getByTestId('chip-anexo-1')).toContainText('vendas_q1.xlsx');
+    await expect(page.getByTestId('chip-anexo-1')).toContainText('XLSX');
+
+    // 4. Remove o primeiro anexo (balanco.pdf)
+    await page.getByRole('button', { name: 'Remover anexo balanco.pdf' }).click();
+    await expect(page.getByTestId('lista-anexos-ia')).not.toContainText('balanco.pdf');
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('vendas_q1.xlsx');
+
+    // 5. Adiciona mais 2 arquivos válidos (Markdown e Imagem) totalizando 3 anexos
+    await fileInput.setInputFiles([
+      {
+        name: 'notas_reuniao.md',
+        mimeType: 'text/markdown',
+        buffer: Buffer.from('# Decisões\n- Meta batida em 120%'),
+      },
+      {
+        name: 'grafico.png',
+        mimeType: 'image/png',
+        buffer: Buffer.alloc(1024 * 30),
+      },
+    ]);
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('vendas_q1.xlsx');
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('notas_reuniao.md');
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('grafico.png');
+    await expect(page.getByTestId('chip-anexo-1')).toContainText('MD');
+
+    // 6. Tenta adicionar mais 1 arquivo excedendo o limite de 3
+    await fileInput.setInputFiles({
+      name: 'extra.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('a,b\n1,2'),
+    });
+    await expect(page.getByTestId('erro-anexo')).toContainText('Você pode anexar no máximo 3 arquivos no total');
+
+    // 7. Dispara a geração com os 3 anexos
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+
+    // 8. Valida redirecionamento para o editor com rascunho persistido
+    await expect(page).toHaveURL(/\/relatorios\/novo\/99aa88bb-1122-4344-8566-778899aabbcc$/);
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório a partir de Anexos');
+    await expect(page.getByLabel('Conteúdo da seção 1')).toHaveValue(
+      'Conforme indicado nas planilhas e relatórios anexados, o desempenho superou a meta.',
+    );
+
+    // 9. Confere que a requisição utilizou multipart/form-data e transmitiu os anexos
+    expect(requestContentType).toContain('multipart/form-data');
+    expect(requestPostData).toContain('notas_reuniao.md');
+    expect(requestPostData).toContain('grafico.png');
+    expect(requestPostData).toContain('vendas_q1.xlsx');
+  });
 });
 
 test.describe('Acesso administrativo', () => {
@@ -674,5 +850,279 @@ test.describe('Acesso administrativo', () => {
 
     await expect(page).toHaveURL('/admin/login');
     await expect(page.getByTestId('formulario-login-admin')).toBeVisible();
+  });
+
+  test('permite ao administrador duplicar um modelo existente gerando um novo rascunho', async ({ page }) => {
+    let templatesList = [{
+      id: 'system-executivo',
+      name: 'Executivo Moderno',
+      description: 'Layout corporativo contemporâneo',
+      html: '<h1>{{report.title}}</h1>{{report.sections}}',
+      css: 'body { font-family: Arial; }',
+      status: 'published',
+      version: 1,
+    }];
+
+    await page.route('**/api/v1/admin/session', async (route) => {
+      if (route.request().method() === 'POST') {
+        await fulfillJson(route, 200, { authenticated: true, expiresAt: new Date().toISOString() });
+        return;
+      }
+      await fulfillJson(route, 200, { authenticated: true });
+    });
+
+    await page.route('**/api/v1/admin/templates', (route) => fulfillJson(route, 200, { templates: templatesList }));
+    await page.route('**/api/v1/admin/templates/system-executivo/clone', async (route) => {
+      const cloned = {
+        id: 'clone-executivo-uuid',
+        name: 'Executivo Moderno (Cópia)',
+        description: 'Layout corporativo contemporâneo',
+        html: '<h1>{{report.title}}</h1>{{report.sections}}',
+        css: 'body { font-family: Arial; }',
+        status: 'draft',
+        version: 1,
+      };
+      templatesList = [cloned, ...templatesList];
+      await fulfillJson(route, 201, cloned);
+    });
+
+    await page.goto('/admin');
+    await expect(page.getByTestId('modelo-admin-system-executivo')).toBeVisible();
+
+    const card = page.getByTestId('modelo-admin-system-executivo');
+    await card.getByRole('button', { name: 'Duplicar' }).click();
+
+    await expect(page.getByRole('status')).toContainText('duplicado com sucesso como "Executivo Moderno (Cópia)"');
+    await expect(page.getByLabel('Nome do modelo')).toHaveValue('Executivo Moderno (Cópia)');
+    await expect(page.getByTestId('modelo-admin-clone-executivo-uuid')).toBeVisible();
+    await expect(page.getByTestId('modelo-admin-clone-executivo-uuid')).toContainText('Inativo / rascunho');
+  });
+
+  test('permite customizar modelo via Theme Builder visual e alternar com Modo Avançado sob confirmação', async ({ page }) => {
+    let createdPayload = null;
+    await page.route('**/api/v1/admin/session', async (route) => {
+      await fulfillJson(route, 200, { authenticated: true, expiresAt: new Date().toISOString() });
+    });
+
+    await page.route('**/api/v1/admin/templates', async (route) => {
+      if (route.request().method() === 'POST') {
+        createdPayload = route.request().postDataJSON();
+        return fulfillJson(route, 201, {
+          id: 'modelo-visual-1',
+          name: createdPayload.name,
+          description: createdPayload.description,
+          html: createdPayload.html,
+          css: createdPayload.css,
+          status: 'draft',
+          version: 1,
+        });
+      }
+      return fulfillJson(route, 200, { templates: [] });
+    });
+
+    await page.goto('/admin');
+    await expect(page.getByTestId('gerenciador-modelos')).toBeVisible();
+
+    // 1. Aba visual ativa por padrão e Theme Builder visível
+    const abaVisual = page.getByTestId('aba-modo-visual');
+    const abaCodigo = page.getByTestId('aba-modo-codigo');
+    await expect(abaVisual).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('theme-builder')).toBeVisible();
+
+    // 2. Preenche dados do formulário
+    await page.getByLabel('Nome do modelo').fill('Tema Executivo Visual');
+    await page.getByLabel('Descrição do modelo').fill('Criado com Theme Builder');
+
+    // 3. Altera parâmetros visuais no Theme Builder
+    await page.getByLabel('Código hexadecimal da cor primária').fill('#7c3aed');
+    await page.getByLabel('Etiqueta do cabeçalho').fill('CONFIDENCIAL DIRETORIA');
+    await page.getByLabel('Layout do cabeçalho').selectOption('centered');
+
+    // 4. Mini prévia reflete imediatamente as mudanças
+    const miniPrevia = page.getByTestId('amostra-theme-builder');
+    await expect(miniPrevia).toContainText('CONFIDENCIAL DIRETORIA');
+
+    // 5. Alterna para Modo Avançado sem confirmação (código não foi tocado)
+    await abaCodigo.click();
+    await expect(abaCodigo).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByLabel('HTML do modelo')).toBeVisible();
+    await expect(page.getByLabel('HTML do modelo')).toHaveValue(/header-centered/);
+    await expect(page.getByLabel('CSS do modelo')).toHaveValue(/#7c3aed/);
+
+    // 6. Edita manualmente o HTML no Modo Avançado
+    await page.getByLabel('HTML do modelo').fill('<h1>{{report.title}}</h1><p>Manual</p>{{report.sections}}');
+
+    // 7. Tenta voltar para o modo visual e descarta (cancela) a confirmação
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('Voltar ao Configurador Visual substituirá as edições manuais');
+      dialog.dismiss();
+    });
+    await abaVisual.click();
+    // Continua no modo avançado
+    await expect(abaCodigo).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByLabel('HTML do modelo')).toHaveValue(/Manual/);
+
+    // 8. Tenta voltar aceitando a confirmação
+    page.once('dialog', (dialog) => {
+      dialog.accept();
+    });
+    await abaVisual.click();
+    await expect(abaVisual).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('theme-builder')).toBeVisible();
+
+    // 9. Salva o rascunho
+    await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'salvo' })).toContainText('Rascunho "Tema Executivo Visual" salvo');
+    expect(createdPayload.name).toBe('Tema Executivo Visual');
+    expect(createdPayload.html).toContain('CONFIDENCIAL DIRETORIA');
+    expect(createdPayload.css).toContain('#7c3aed');
+  });
+
+  test('executa o fluxo E2E unificado da Iniciativa 03: criação IA com anexos, modelo executivo e exportação multiformato', async ({ page }) => {
+    const templatesCatalog = [
+      { id: 'system-executivo', name: 'Executivo Corporativo', status: 'published' },
+      { id: 'system-painel-executivo', name: 'Painel Executivo & Callouts', status: 'published' },
+      { id: 'system-minimalista', name: 'Minimalista Preto e Branco', status: 'published' },
+    ];
+
+    let aiReportRequestedWithAttachment = false;
+    let exportPdfTemplateUsed = null;
+    let exportDocxCalled = false;
+    let exportMarkdownCalled = false;
+
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: templatesCatalog }));
+
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      const postData = route.request().postData() || '';
+      aiReportRequestedWithAttachment = postData.includes('contexto-slas.md');
+      await fulfillJson(route, 200, {
+        schemaVersion: 1,
+        id: '12345678-1234-4234-8234-123456789abc',
+        title: 'Relatório Executivo de Incidentes e SLAs',
+        topic: 'Gestão de Incidentes Q4',
+        brief: {
+          objective: 'Apresentar volumetria e conformidade de SLA à diretoria',
+          audience: 'C-Level',
+          desiredLength: 'medium',
+          tone: 'formal',
+          references: ['contexto-slas.md'],
+        },
+        sections: [
+          {
+            id: '22345678-1234-4234-8234-123456789abc',
+            title: 'Desempenho Geral de Atendimento',
+            body: '| Mês | Chamados | SLA Atingido |\n| --- | --- | --- |\n| Out | 120 | 98.5% |\n| Nov | 145 | 99.1% |',
+            importantDetails: ['Alerta Crítico: Redução de 45% nos incidentes de alta severidade.'],
+            images: [],
+          },
+        ],
+        selectedFormats: ['pdf', 'docx', 'markdown'],
+        pdfTemplateId: 'system-painel-executivo',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    await page.route('**/api/v1/exports/pdf', async (route) => {
+      const match = (route.request().postData() || '').match(/name="report"\r\n\r\n([\s\S]*?)\r\n--/);
+      if (match) {
+        const payload = JSON.parse(match[1]);
+        exportPdfTemplateUsed = payload.pdfTemplateId;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        headers: { 'Content-Disposition': 'attachment; filename="relatorio.pdf"' },
+        body: Buffer.from('%PDF-1.4 mock pdf content'),
+      });
+    });
+
+    await page.route('**/api/v1/exports/docx', async (route) => {
+      exportDocxCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        headers: { 'Content-Disposition': 'attachment; filename="relatorio.docx"' },
+        body: Buffer.from('mock docx content'),
+      });
+    });
+
+    await page.route('**/api/v1/exports/markdown', async (route) => {
+      exportMarkdownCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/markdown',
+        headers: { 'Content-Disposition': 'attachment; filename="relatorio.md"' },
+        body: '# Relatório Executivo',
+      });
+    });
+
+    // 1. Visita a Home e abre o modal de Iniciar Relatório
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    const modal = page.getByRole('dialog', { name: 'Iniciar novo relatório' });
+    await expect(modal).toBeVisible();
+
+    // 2. Configura: Começar com IA, formatos PDF + DOCX + Markdown, e modelo Painel Executivo
+    await modal.getByRole('radio', { name: /Começar com IA/ }).check();
+    await modal.getByRole('checkbox', { name: 'DOCX' }).check();
+    await modal.getByRole('checkbox', { name: 'Markdown' }).check();
+    await modal.getByLabel('Modelo de PDF').selectOption('system-painel-executivo');
+    await modal.getByRole('button', { name: 'Continuar' }).click();
+
+    // 3. Chega ao formulário de IA
+    await expect(page.getByTestId('formulario-geracao-ia')).toBeVisible();
+    await page.getByLabel('Tema para geração').fill('Gestão de Incidentes Q4');
+
+    // 4. Anexa arquivo Markdown de contexto
+    const uploadInput = page.getByLabel('Selecionar arquivos de contexto');
+    await uploadInput.setInputFiles({
+      name: 'contexto-slas.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# Dados de contexto de SLA para suporte à decisão'),
+    });
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('contexto-slas.md');
+
+    // 5. Dispara a geração com IA
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+
+    // 6. Editor manual abre com o relatório gerado
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    expect(aiReportRequestedWithAttachment).toBe(true);
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório Executivo de Incidentes e SLAs');
+    await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('system-painel-executivo');
+
+    // 7. Abre a Pré-visualização e confere os elementos
+    await page.getByRole('button', { name: 'Pré-visualizar' }).click();
+    const previa = page.getByTestId('previa-relatorio');
+    await expect(previa).toBeVisible();
+    await expect(previa).toContainText('Painel Executivo & Callouts');
+    await expect(previa).toContainText('Desempenho Geral de Atendimento');
+    await expect(previa).toContainText('Alerta Crítico: Redução de 45% nos incidentes de alta severidade.');
+    await page.getByRole('button', { name: 'Fechar prévia' }).click();
+
+    // 8. Gera os arquivos selecionados
+    await page.getByRole('button', { name: 'Gerar arquivos selecionados' }).click();
+    await expect(page.getByTestId('estado-exportacao-pdf')).toHaveText('PDF gerado com sucesso.');
+    await expect(page.getByTestId('estado-exportacao-docx')).toHaveText('DOCX gerado com sucesso.');
+    await expect(page.getByTestId('estado-exportacao-markdown')).toHaveText('Markdown gerado com sucesso.');
+
+    // 9. Testa o download de cada arquivo concluído
+    const downloadPromisePdf = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Baixar PDF' }).click();
+    const downloadPdf = await downloadPromisePdf;
+    expect(downloadPdf.suggestedFilename()).toBe('relatorio.pdf');
+    expect(exportPdfTemplateUsed).toBe('system-painel-executivo');
+
+    const downloadPromiseDocx = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Baixar DOCX' }).click();
+    const downloadDocx = await downloadPromiseDocx;
+    expect(downloadDocx.suggestedFilename()).toBe('relatorio.docx');
+    expect(exportDocxCalled).toBe(true);
+
+    const downloadPromiseMd = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Baixar Markdown' }).click();
+    const downloadMd = await downloadPromiseMd;
+    expect(downloadMd.suggestedFilename()).toBe('relatorio.md');
+    expect(exportMarkdownCalled).toBe(true);
   });
 });

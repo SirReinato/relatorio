@@ -21,17 +21,17 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 - Exportação PDF com Playwright/Chromium, DOCX com `docx` e Markdown próprio; os relatórios não são persistidos no servidor.
 - Templates PDF HTML/CSS usam allowlist: tags semânticas permitidas, seletores simples/de descendentes, pseudo-elementos `::before`/`::after` e propriedades CSS de apresentação; `@page` aceita margens, tamanhos de papel comuns e a caixa `@bottom-right` para numeração. Scripts, outras regras especiais, importações e recursos de rede são rejeitados.
 - Rate limit para IA e exportação, validação por schema e limites em arquivos/imagens.
-- A landing abre um modal acessível para modalidade, formatos e modelos publicados. A modalidade IA coleta tema e parâmetros opcionais, envia a solicitação explicitamente à API, permite cancelar/tentar novamente e valida a resposta antes de criar o draft.
-- A modalidade manual e os drafts gerados por IA usam o mesmo editor de relatório com seções, detalhes, imagens e prévia. Drafts e imagens são salvos no IndexedDB deste navegador e podem ser retomados pela Home ou pela rota com ID; a canonicalização da URL preserva o rascunho já ativo em memória. A regeneração de seção apresenta uma proposta para aceitar ou descartar, preservando anexos, outras seções e edições concorrentes.
-- O editor exporta cada formato selecionado a partir do mesmo snapshot, com progresso e falhas independentes por formato; é possível tentar novamente somente o formato que falhou e baixar individualmente cada arquivo concluído. PDF e DOCX recebem as imagens anexadas; Markdown inclui as legendas ou nomes como referências textuais, sem embutir ou enviar os binários. A exportação não altera nem descarta o rascunho.
+- A landing abre um modal acessível para modalidade, formatos e modelos publicados. A modalidade IA coleta tema, parâmetros opcionais e até 3 anexos de contexto (PDF, XLSX, CSV, Markdown e imagens até 15 MiB combinados), envia a solicitação em multipart à API com parsing efêmero em memória, permite cancelar/tentar novamente e valida a resposta antes de criar o draft.
+- A modalidade manual e os drafts gerados por IA usam o mesmo editor de relatório com seções, detalhes, imagens e prévia. O seletor de modelos de PDF permite alternar dinamicamente o modelo aplicado com sincronização imediata no IndexedDB. Drafts e imagens são salvos no IndexedDB deste navegador e podem ser retomados pela Home ou pela rota com ID; a canonicalização da URL preserva o rascunho já ativo em memória. A regeneração de seção apresenta uma proposta para aceitar ou descartar, preservando anexos, outras seções e edições concorrentes.
+- O editor exporta cada formato selecionado a partir do mesmo snapshot, com progresso e falhas independentes por formato; é possível tentar novamente somente o formato que falhou e baixar individualmente cada arquivo concluído. O motor de PDF suporta formatação rica com `.callout-card` para destaques, `<blockquote>` para citações e tabelas Markdown estruturadas em `<table>` com paginação limpa. PDF e DOCX recebem as imagens anexadas; Markdown inclui as legendas ou nomes como referências textuais, sem embutir ou enviar os binários. A exportação não altera nem descarta o rascunho.
 - O armazenamento local mantém até 10 rascunhos; aceita JPEG/PNG/WebP até 5 MiB por imagem e 20 MiB por relatório, com erros explícitos quando quota ou armazenamento não permitem salvar.
-- `/admin/login` autentica contra a API e `/admin` verifica a sessão. A área permite criar e editar rascunhos, pré-visualizar PDFs gerados no servidor, publicar/despublicar e excluir modelos inativos. HTML/CSS passam por allowlists server-side; o PDF gerado é exibido pelo visualizador nativo do navegador sem `sandbox` (que bloqueia o plugin PDF do Chrome), e o seletor público recebe somente modelos publicados.
+- `/admin/login` autentica contra a API e `/admin` verifica a sessão. A área permite gerenciar o catálogo canônico de 5 modelos de sistema, clonar templates existentes, criar novos modelos via Theme Builder visual interativo ou Modo Avançado (HTML/CSS), pré-visualizar PDFs gerados no servidor, publicar/despublicar e excluir modelos inativos. HTML/CSS passam por allowlists server-side; o PDF gerado é exibido pelo visualizador nativo do navegador sem `sandbox` (que bloqueia o plugin PDF do Chrome), e o seletor público recebe somente modelos publicados.
 
 ### Executar localmente
 
 1. Copie `.env.example` para `.env` e defina uma senha forte em `ADMIN_INITIAL_PASSWORD`.
-2. Inicie a API em um terminal: `npm run api:dev`.
-3. Inicie a SPA em outro terminal: `npm run dev`. O Vite encaminha `/api` para a API local.
+2. Inicie a aplicação completa (API na porta 3000 + SPA na porta 5173): `npm run dev`.
+3. Alternativamente, execute os serviços isolados em terminais dedicados: `npm run api:dev` (apenas backend) e `npm run dev:spa` (apenas frontend). O Vite encaminha `/api` para a API local.
 
 O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a conta admin no primeiro arranque; remova-a do `.env` após o provisionamento. Para usar IA, defina `AI_PROVIDER=openai` ou `AI_PROVIDER=gemini` e configure a chave/modelo correspondentes; chaves nunca devem usar o prefixo `VITE_`. Para gerar PDFs, instale o Chromium compatível com Playwright usando `npx playwright install chromium`, se ainda não estiver instalado.
 
@@ -44,6 +44,7 @@ O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a c
 | Listar modelos publicados | `GET /api/v1/templates` |
 | Login/logout/rotação de senha admin | `POST /api/v1/admin/session`, `DELETE /api/v1/admin/session`, `PUT /api/v1/admin/password` |
 | CRUD/publicação/preview de modelos | `/api/v1/admin/templates` |
+| Clonar modelo existente | `POST /api/v1/admin/templates/:id/clone` |
 | Exportar PDF, DOCX ou Markdown | `POST /api/v1/exports/{pdf,docx,markdown}` |
 
 Rotas da SPA: `/` (landing e retomada de drafts), `/relatorios/novo` (formulário IA ou editor manual conforme a modalidade escolhida), `/relatorios/novo/:draftId` (abrir/retomar editor de drafts manuais ou gerados por IA), `/admin/login` e `/admin` (área administrativa inicial). A integração real de IA é opcional e depende de configuração do servidor.
@@ -58,8 +59,9 @@ As decisões, contratos, limites iniciais, comparações e pendências estão em
 
 ```bash
 npm install
-npm run api:dev
 npm run dev
+npm run dev:spa
+npm run api:dev
 npm run build
 npm run lint
 npm run test:api

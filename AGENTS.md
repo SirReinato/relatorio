@@ -185,7 +185,8 @@ Ao inicializar um novo projeto via `npm create vite@latest`, o template do Vite 
 | Comando | Descrição | 
 | ----- | ----- | 
 | `npm install` | Instala todas as dependências do projeto | 
-| `npm run dev` | Inicia o servidor local de desenvolvimento (geralmente em `http://localhost:5173`) | 
+| `npm run dev` | Inicia simultaneamente o backend Fastify (porta 3000) e o frontend Vite (porta 5173) via concurrently | 
+| `npm run dev:spa` | Inicia somente o servidor frontend Vite (geralmente em `http://localhost:5173`) | 
 | `npm run build` | Gera a build otimizada para produção no diretório `dist/` | 
 | `npm run preview` | Executa um servidor local servindo a pasta de produção `dist/` | 
 | `npm run api:dev` | Inicia a API Node/Fastify usando o `.env` local, se existir |
@@ -223,19 +224,25 @@ As variáveis de ambiente do client-side devem seguir o prefixo `VITE_` para fic
 meu-projeto/
 ├── 00-anything/               # Diretório OBRIGATÓRIO para drafts, specs, relatórios EGM e testes
 │   ├── 01 - setup inicial 2026-11-07/
-│   └── 02 - gerador de relatorios 2026-11-09/
-│       ├── plan.md
+│   ├── 02 - gerador de relatorios 2026-11-09/
+│   │   ├── plan.md
+│   │   ├── design_draft.md
+│   │   ├── egm_review_report.md
+│   │   ├── egm_resolve_report.md
+│   │   └── architecture_decisions.md
+│   └── 03 - evolucao de modelos e anexos 2026-11-11/
+│       ├── concepts_brief.md
 │       ├── design_draft.md
-│       ├── egm_review_report.md
-│       ├── egm_resolve_report.md
 │       └── architecture_decisions.md
 ├── api/                      # API Fastify, schemas, auth, SQLite, IA e exportadores
 │   ├── ai.js
 │   ├── app.js
 │   ├── auth.js
+│   ├── canonicalTemplates.js
 │   ├── database.js
 │   ├── errors.js
 │   ├── exporters.js
+│   ├── parsers.js
 │   ├── schemas.js
 │   └── server.js
 ├── AGENTS.md                  # Ponto de entrada e guia vivo para IAs e agentes (este arquivo)
@@ -252,7 +259,8 @@ meu-projeto/
 ├── public/                    # Assets estáticos públicos servidos na raiz (ícones, favicons, etc.)
 ├── tests/                     # Testes funcionais e fluxos E2E com Playwright
 │   ├── api/
-│   │   └── api.test.js        # Contratos, provedores de IA, cancelamento e exportação
+│   │   ├── api.test.js        # Contratos, provedores de IA, cancelamento e exportação
+│   │   └── parsers.test.js    # Parsing efêmero: PDF, XLSX, CSV, imagens, amostragem e limites
 │   └── e2e/
 │       └── rotas.spec.js      # Landing, geração/regeneração IA, editor, retomada e acesso administrativo
 └── src/
@@ -266,9 +274,13 @@ meu-projeto/
     │
     ├── components/
     │   ├── LocalDraftList/    # Lista, retomada e remoção de rascunhos locais na Home
-    │   ├── AdminTemplateManager/ # CRUD administrativo, publicação e prévia isolada de PDFs
+    │   ├── AdminTemplateManager/ # CRUD administrativo, publicação, duplicação e Theme Builder visual
+    │   │   ├── index.jsx      # Gerenciador com alternador de Modo Visual vs Avançado (HTML/CSS)
+    │   │   ├── styles.js      # Estilos styled-components exclusivos (sufixo Stl)
+    │   │   ├── ThemeBuilder.jsx # Construtor visual interativo com amostra em tempo real
+    │   │   └── themeCompiler.js # Compilador determinístico de temas em HTML/CSS restritos
     │   ├── ManualReportEditor/# Editor compartilhado, seções, anexos, prévia, propostas de IA e exportação/download
-    │   ├── ReportGenerationForm/ # Parâmetros, cancelamento e estados da geração de relatório
+    │   ├── ReportGenerationForm/ # Parâmetros, zona de upload de anexos de contexto (drag-and-drop, chips), cancelamento e estados
     │   └── StartReportModal/  # Modal acessível para modalidade, formatos e modelos PDF
     ├── pages/                 # Páginas da aplicação (uma pasta por tela)
     │   ├── AdminArea/         # Área inicial protegida pela sessão administrativa
@@ -703,3 +715,12 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-10 | GitHub Copilot | Expansão da allowlist segura de templates PDF para aceitar tags `header`/`main`, seletores comuns e regras `@page` limitadas, permitindo layouts de relatório A4 sem liberar scripts ou acesso à rede. |
 | 2026-11-10 | GitHub Copilot | Ampliação da allowlist para rodapé de relatório: tag `footer`, posição fixa, propriedades de layout e `@page @bottom-right` com texto/counters de página restritos; API testa atualização e geração de PDF do template completo. |
 | 2026-11-10 | GitHub Copilot | Validação final do MVP: proteção contra origens ausentes/externas no login admin, preservação do rascunho ativo ao canonicalizar a rota, sincronização dos comandos SAST e dados Playwright, e alinhamento da documentação à Etapa 8. |
+| 2026-11-11 | Antigravity AI | Resolução do erro 500 no proxy do Vite (SIR-88 e SIR-89): adição do concurrently ao npm run dev para iniciar simultaneamente API (porta 3000) e SPA (porta 5173), adição do script dev:spa, implementação de tratamento de erro amigável (503 API_OFFLINE) no proxy do vite.config.js e validação operacional do Graphify (575 nós, 23 comunidades). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-90 (Fase 1 da Iniciativa 03): motor de parsing efêmero em memória (`api/parsers.js`) para extração de texto em PDFs (`pdf-parse`), conversão tabular de planilhas CSV/XLSX (`read-excel-file`), amostragem Markdown, proteção contra Zip Bombs (teto 25 MB), limites globais (15 MB / 3 arquivos) e truncamento ordenado a ~30k tokens. Cobertura com 8 novos testes em `tests/api/parsers.test.js` (totalizando 20 testes aprovados). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-91 (Fase 2 da Iniciativa 03): expansão do endpoint `POST /api/v1/ai/reports` para suporte híbrido multipart/form-data e JSON via `@fastify/multipart` (teto aumentado para 10 MiB/arquivo, 10 campos e 30 partes), integração com `createRequestAbortSignal`, injeção de contexto analítico (`consolidateContext`) nos prompts dos provedores de IA (OpenAI, Gemini e Fake), e adaptação determinística do provedor Fake refletindo metadados e evidências dos anexos. Cobertura com 3 novos testes em `tests/api/api.test.js` (totalizando 23 testes da API aprovados). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-92 (Fase 3 da Iniciativa 03): integração do seletor dinâmico de modelos PDF publicados (`fetchPublicTemplates`) diretamente no `ManualReportEditor` (bloco de configurações, barra de exportação e prévia), sincronização reativa com persistência no IndexedDB (`saveReportDraft`), tratamento gracioso com alerta e botão de reversão rápida para modelos despublicados (`AlertaModeloStl` e `BlocoModeloStl`). Cobertura com 1 novo teste E2E Playwright em `tests/e2e/rotas.spec.js` (totalizando 17 testes E2E aprovados). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-93 (Fase 4 da Iniciativa 03): catálogo de 4 modelos canônicos iniciais (`system-executivo`, `system-tecnico`, `system-comercial`, `system-minimalista`) em `api/canonicalTemplates.js`, semeados no SQLite com status `published`; implementação da rota administrativa de duplicação `POST /api/v1/admin/templates/:id/clone` e inclusão do botão "Duplicar" na interface do `AdminTemplateManager`. Cobertura com 2 novos testes de API em `tests/api/api.test.js` (total 25 aprovados) e 1 novo teste E2E em `tests/e2e/rotas.spec.js` (total 18 aprovados). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-94 (Fase 5 da Iniciativa 03): construtor visual de modelos PDF Theme Builder (`ThemeBuilder.jsx`, `themeCompiler.js`, `styles.js`) com controles de paleta (primária, secundária, texto, fundo), tipografia, tamanhos, margens (@page), estilos de cabeçalho (split, centered, clean), etiquetas e formatos de numeração de rodapé; modo duplo no `AdminTemplateManager` ("Configurador Visual" vs "Modo Avançado (HTML/CSS)") com guarda de confirmação para prevenir perda de edições manuais em código; compilador 100% aderente à allowlist do `sanitizeTemplate`. Cobertura com 1 novo teste de API em `tests/api/api.test.js` (total 26 aprovados) e 1 novo teste E2E em `tests/e2e/rotas.spec.js` (total 19 aprovados). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-95 (Fase 6 da Iniciativa 03): zona de upload drag-and-drop e seleção de arquivos em `ReportGenerationForm` (`ZonaDropUploadStl`, `InputOcultoUploadStl`, `ListaAnexosStl`, `ChipAnexoStl`, etc.), suporte a até 3 anexos (PDF, XLSX, CSV, Markdown .md, PNG, JPG, WebP) com validação client-side e server-side (`extractMarkdownText` em `api/parsers.js`), limite de 10 MiB para documentos/markdown, 5 MiB para imagens e 15 MiB somados; chips com badge de tipo (`MD`, `PDF`, etc.), nome, tamanho formatado e remoção individual; suporte a envio `multipart/form-data` em `src/services/api.js` empacotando os anexos via `FormData`. Cobertura com 1 novo teste de parser em `tests/api/parsers.test.js` (total 27 aprovados) e 1 teste E2E em `tests/e2e/rotas.spec.js` (totalizando 20 testes E2E aprovados). |
+| 2026-11-11 | Antigravity AI | Enriquecimento visual de PDFs executivos: suporte em `renderPdfHtml` (`api/exporters.js`) para conversão de tabelas Markdown e citações em `<table>` e `<blockquote>` reais; renderização de `importantDetails` como callout boxes (`.callout-card` com `.callout-tag` âmbar/amarelo); novo modelo canônico `system-painel-executivo` ("Painel Executivo & Callouts") com painel de indicadores (`.meta-strip`), tabelas corporativas zebradas, badges e rodapé Paged Media; incorporação de callouts e tabelas no compilador `themeCompiler.js`. Cobertura com 1 novo teste de API em `tests/api/api.test.js` (totalizando 28 aprovados). |
+| 2026-11-11 | Antigravity AI | Conclusão de SIR-96 (Fase 7 e Governança da Iniciativa 03): consolidação da suíte de testes de ponta a ponta e testes de contrato da Iniciativa 03; inclusão de teste de limite cumulativo de 15 MiB multipart em `tests/api/api.test.js` (totalizando 29 testes de API 100% aprovados); inclusão de teste E2E unificado em `tests/e2e/rotas.spec.js` cobrindo a jornada completa (criação via IA com seleção de template executivo, anexação de arquivos Markdown via drag-and-drop, geração com injeção de contexto analítico, validação visual no editor comum com renderização de tabelas e callout boxes e exportação simultânea para PDF, DOCX e Markdown — totalizando 21 testes E2E Playwright 100% aprovados); validação de ESLint sem erros; atualização de governança e documentação em `README.md` e `AGENTS.md`. |

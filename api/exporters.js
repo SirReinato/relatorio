@@ -25,6 +25,7 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'border',
   'border-bottom',
   'border-left',
+  'border-right',
   'border-collapse',
   'border-color',
   'border-radius',
@@ -37,6 +38,8 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'color',
   'content',
   'display',
+  'flex',
+  'flex-direction',
   'gap',
   'align-items',
   'font-family',
@@ -50,17 +53,22 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'line-height',
   'margin',
   'margin-bottom',
+  'margin-left',
+  'margin-right',
   'margin-top',
   'max-width',
   'min-height',
   'padding',
   'padding-bottom',
   'padding-left',
+  'padding-right',
   'padding-top',
   'page-break-after',
+  'page-break-inside',
   'position',
   'right',
   'text-align',
+  'text-decoration',
   'text-transform',
   'vertical-align',
   'white-space',
@@ -205,8 +213,75 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function paragraphs(text) {
-  return text.split(/\r?\n/).map((line) => `<p>${escapeHtml(line)}</p>`).join('');
+function renderMarkdownBody(text) {
+  if (!text) return '';
+  const lines = text.split(/\r?\n/);
+  const elements = [];
+  let currentTable = null;
+  let currentQuote = [];
+
+  function flushQuote() {
+    if (currentQuote.length > 0) {
+      elements.push(`<blockquote>${currentQuote.map(escapeHtml).join('<br>')}</blockquote>`);
+      currentQuote = [];
+    }
+  }
+
+  function flushTable() {
+    if (currentTable) {
+      if (currentTable.rows.length > 0) {
+        const header = currentTable.headers.length > 0
+          ? `<thead><tr>${currentTable.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`
+          : '';
+        const bodyRows = currentTable.rows.map(
+          (row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`,
+        ).join('');
+        elements.push(`<table>${header}<tbody>${bodyRows}</tbody></table>`);
+      }
+      currentTable = null;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+    if (!line) {
+      flushQuote();
+      flushTable();
+      continue;
+    }
+
+    if (line.startsWith('|') && line.endsWith('|')) {
+      flushQuote();
+      const cells = line.slice(1, -1).split('|').map((c) => c.trim());
+      const isDivider = cells.every((c) => /^:?-+:?$/.test(c));
+      if (isDivider) {
+        continue;
+      }
+      if (!currentTable) {
+        currentTable = { headers: cells, rows: [] };
+      } else {
+        currentTable.rows.push(cells);
+      }
+      continue;
+    } else {
+      flushTable();
+    }
+
+    if (line.startsWith('>')) {
+      const quoteContent = line.replace(/^>\s?/, '');
+      currentQuote.push(quoteContent);
+      continue;
+    } else {
+      flushQuote();
+    }
+
+    elements.push(`<p>${escapeHtml(rawLine)}</p>`);
+  }
+
+  flushQuote();
+  flushTable();
+  return elements.join('');
 }
 
 function renderSections(report, images) {
@@ -218,9 +293,9 @@ function renderSections(report, images) {
       return `<figure><img src="data:${uploaded.mediaType};base64,${uploaded.buffer.toString('base64')}" alt="${escapeHtml(image.caption || image.fileName)}">${caption}</figure>`;
     }).join('');
     const details = section.importantDetails.length
-      ? `<ul>${section.importantDetails.map((detail) => `<li>${escapeHtml(detail)}</li>`).join('')}</ul>`
+      ? `<div class="callout-card"><span class="callout-tag">Destaque Operacional &amp; Pontos de Atenção</span><ul>${section.importantDetails.map((detail) => `<li>${escapeHtml(detail)}</li>`).join('')}</ul></div>`
       : '';
-    return `<section><h2>${escapeHtml(section.title)}</h2>${paragraphs(section.body)}${details}${imageMarkup}</section>`;
+    return `<section><h2>${escapeHtml(section.title)}</h2>${renderMarkdownBody(section.body)}${details}${imageMarkup}</section>`;
   }).join('');
 }
 

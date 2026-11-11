@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   exportReport,
+  fetchPublicTemplates,
   regenerateReportSection,
   validateSectionProposal,
 } from '../../services/api.js';
@@ -14,7 +15,9 @@ import {
   saveReportDraft,
 } from '../../services/reportDrafts.js';
 import {
+  AlertaModeloStl,
   AreaTextoRelatorioStl,
+  BlocoModeloStl,
   BotaoEditorStl,
   CabecalhoEditorStl,
   CabecalhoSecaoStl,
@@ -171,12 +174,48 @@ export default function ManualReportEditor({
   const [regenerationErrors, setRegenerationErrors] = useState(() => new Map());
   const [exportResults, setExportResults] = useState(() => new Map());
   const [isExporting, setIsExporting] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [templatesError, setTemplatesError] = useState('');
 
   const currentDraftRef = useRef(null);
   const validationErrors = useMemo(() => (draft ? validateDraft(draft) : []), [draft]);
   const totalImageBytes = draft
     ? draft.sections.flatMap((section) => section.images).reduce((total, image) => total + image.sizeBytes, 0)
     : 0;
+
+  const activeTemplateId = draft?.pdfTemplateId || 'system-default';
+  const activeTemplate = templates.find((t) => t.id === activeTemplateId);
+  const isTemplateUnavailable = Boolean(
+    draft?.pdfTemplateId
+    && draft.pdfTemplateId !== 'system-default'
+    && !isLoadingTemplates
+    && templates.length > 0
+    && !activeTemplate,
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingTemplates(true);
+    setTemplatesError('');
+
+    fetchPublicTemplates()
+      .then((availableTemplates) => {
+        if (!isMounted) return;
+        setTemplates(availableTemplates);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setTemplatesError(error.message);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingTemplates(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     currentDraftRef.current = draft;
@@ -731,10 +770,59 @@ export default function ManualReportEditor({
             {label}
           </label>
         ))}
-        <TextoSecundarioStl data-testid="modelo-pdf">
-          Modelo PDF: {draft.pdfTemplateId || 'Nenhum modelo selecionado'}
-        </TextoSecundarioStl>
       </GrupoAcoesStl>
+
+      <BlocoModeloStl data-testid="modelo-pdf">
+        <CampoRelatorioStl>
+          Modelo de PDF
+          <SelecaoRelatorioStl
+            aria-label="Selecionar modelo de PDF"
+            value={draft.pdfTemplateId || 'system-default'}
+            disabled={isLoadingTemplates}
+            onChange={(event) => updateDraft({ pdfTemplateId: event.target.value })}
+          >
+            {templates.length === 0 && (
+              <option value={draft.pdfTemplateId || 'system-default'}>
+                {draft.pdfTemplateId || 'system-default'}
+              </option>
+            )}
+            {templates.map((tpl) => (
+              <option key={tpl.id} value={tpl.id}>
+                {tpl.name} ({tpl.id})
+              </option>
+            ))}
+            {isTemplateUnavailable && (
+              <option value={draft.pdfTemplateId} disabled>
+                {draft.pdfTemplateId} (Despublicado / Indisponível)
+              </option>
+            )}
+          </SelecaoRelatorioStl>
+        </CampoRelatorioStl>
+        <TextoSecundarioStl>
+          Modelo ativo: {activeTemplate ? `${activeTemplate.name} (${activeTemplate.id})` : (draft.pdfTemplateId || 'system-default')}
+        </TextoSecundarioStl>
+        {isLoadingTemplates && <TextoSecundarioStl role="status">Carregando modelos disponíveis…</TextoSecundarioStl>}
+        {templatesError && (
+          <TextoSecundarioStl role="alert">
+            Não foi possível atualizar a lista de modelos: {templatesError}
+          </TextoSecundarioStl>
+        )}
+      </BlocoModeloStl>
+
+      {isTemplateUnavailable && (
+        <AlertaModeloStl role="alert" data-testid="alerta-modelo-despublicado">
+          <div>
+            <strong>Aviso sobre o modelo de PDF:</strong> O modelo previamente selecionado (<code>{draft.pdfTemplateId}</code>) foi despublicado ou não está mais disponível. Selecione outro modelo ou reverta para o padrão do sistema.
+          </div>
+          <BotaoEditorStl
+            type="button"
+            $variant="secondary"
+            onClick={() => updateDraft({ pdfTemplateId: 'system-default' })}
+          >
+            Reverter para modelo padrão
+          </BotaoEditorStl>
+        </AlertaModeloStl>
+      )}
 
       <GrupoSecoesStl aria-label="Seções do relatório">
         {draft.sections.map((section, sectionIndex) => (
@@ -934,6 +1022,33 @@ export default function ManualReportEditor({
           Os formatos selecionados usam o mesmo snapshot do relatório. O relatório e as imagens necessárias
           serão enviados à API somente durante a exportação; falhas podem ser repetidas por formato.
         </TextoSecundarioStl>
+        {draft.selectedFormats.includes('pdf') && (
+          <CampoRelatorioStl>
+            Modelo PDF para exportação
+            <SelecaoRelatorioStl
+              aria-label="Modelo PDF para exportação"
+              value={draft.pdfTemplateId || 'system-default'}
+              disabled={isLoadingTemplates}
+              onChange={(event) => updateDraft({ pdfTemplateId: event.target.value })}
+            >
+              {templates.length === 0 && (
+                <option value={draft.pdfTemplateId || 'system-default'}>
+                  {draft.pdfTemplateId || 'system-default'}
+                </option>
+              )}
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name} ({tpl.id})
+                </option>
+              ))}
+              {isTemplateUnavailable && (
+                <option value={draft.pdfTemplateId} disabled>
+                  {draft.pdfTemplateId} (Despublicado / Indisponível)
+                </option>
+              )}
+            </SelecaoRelatorioStl>
+          </CampoRelatorioStl>
+        )}
         <BotaoEditorStl
           type="button"
           $variant="primary"
@@ -1009,7 +1124,10 @@ export default function ManualReportEditor({
           <TextoSecundarioStl>Formatos: {draft.selectedFormats.length
             ? draft.selectedFormats.map((format) => formatLabels[format]).join(', ')
             : 'nenhum selecionado'}</TextoSecundarioStl>
-          <TextoSecundarioStl>Modelo PDF: {draft.pdfTemplateId || 'nenhum selecionado'}</TextoSecundarioStl>
+          <TextoSecundarioStl data-testid="previa-modelo-pdf">
+            Modelo PDF: {activeTemplate ? `${activeTemplate.name} (${activeTemplate.id})` : (draft.pdfTemplateId || 'system-default')}
+            {isTemplateUnavailable && ' (Despublicado / Indisponível)'}
+          </TextoSecundarioStl>
           <h2>{draft.title}</h2>
           <p><strong>Tema:</strong> {draft.topic}</p>
           {draft.sections.map((section) => (

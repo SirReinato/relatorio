@@ -32,14 +32,21 @@ import {
   regenerateSectionSchema,
   reportErrors,
   templateSchema,
+  validate,
 } from './schemas.js';
+import { consolidateContext, MAX_ATTACHMENTS_COUNT } from './parsers.js';
 
-const UUID_SCHEMA = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' };
+const TEMPLATE_ID_SCHEMA = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 100,
+  pattern: '^(system-[a-z0-9-]+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$',
+};
 const TEMPLATE_PARAMS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['id'],
-  properties: { id: UUID_SCHEMA },
+  properties: { id: TEMPLATE_ID_SCHEMA },
 };
 
 function now() {
@@ -224,6 +231,90 @@ async function parseExportMultipart(request, format) {
   return { report, uploadedImages };
 }
 
+async function parseGenerateReportRequest(request, abort) {
+  if (!request.isMultipart()) {
+    const body = request.body;
+    const errors = validate(generateReportSchema, body);
+    if (errors) {
+      fail(400, 'VALIDATION_ERROR', 'Revise os campos indicados.', request, { fieldErrors: errors });
+    }
+    return {
+      payload: body,
+      attachmentsContext: null,
+    };
+  }
+
+  let payload = null;
+  const attachments = [];
+
+  try {
+    for await (const part of request.parts()) {
+      if (abort?.signal?.aborted) {
+        throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+      }
+
+      if (part.type === 'field') {
+        if (part.fieldname === 'payload') {
+          if (payload !== null) {
+            throw new ApiError(400, 'VALIDATION_ERROR', 'Envie somente um campo payload em JSON.');
+          }
+          if (typeof part.value === 'string') {
+            try {
+              payload = JSON.parse(part.value);
+            } catch {
+              throw new ApiError(400, 'VALIDATION_ERROR', 'O campo payload não contém JSON válido.');
+            }
+          } else if (part.mimetype === 'application/json' && part.value && typeof part.value === 'object') {
+            payload = part.value;
+          } else {
+            throw new ApiError(400, 'VALIDATION_ERROR', 'O campo payload não contém JSON válido.');
+          }
+        }
+        continue;
+      }
+
+      if (part.type === 'file') {
+        if (attachments.length >= MAX_ATTACHMENTS_COUNT) {
+          throw new ApiError(400, 'TOO_MANY_FILES', `Envie no máximo ${MAX_ATTACHMENTS_COUNT} arquivos de contexto.`);
+        }
+        const buffer = await part.toBuffer();
+        if (abort?.signal?.aborted) {
+          throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+        }
+        attachments.push({
+          fileName: part.filename || 'anexo',
+          mimeType: part.mimetype || '',
+          buffer,
+        });
+      }
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE') {
+      throw new ApiError(413, 'FILE_TOO_LARGE', 'Cada arquivo anexo deve ter no máximo 10 MiB.');
+    }
+    if (error.code === 'FST_FILES_LIMIT' || error.code === 'FST_PARTS_LIMIT') {
+      throw new ApiError(413, 'TOO_MANY_FILES', `Envie no máximo ${MAX_ATTACHMENTS_COUNT} arquivos de contexto.`);
+    }
+    throw error;
+  }
+
+  if (!payload) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'O campo payload é obrigatório.');
+  }
+
+  const errors = validate(generateReportSchema, payload);
+  if (errors) {
+    fail(400, 'VALIDATION_ERROR', 'Revise os campos indicados.', request, { fieldErrors: errors });
+  }
+
+  const attachmentsContext = attachments.length > 0
+    ? await consolidateContext(attachments)
+    : null;
+
+  return { payload, attachmentsContext };
+}
+
 function templateRecord(template) {
   return {
     id: template.id,
@@ -299,11 +390,11 @@ export async function createApi(options = {}) {
   });
   await app.register(multipart, {
     limits: {
-      fileSize: 5 * 1024 * 1024,
+      fileSize: 10 * 1024 * 1024,
       files: 20,
-      fields: 1,
-      parts: 21,
-      fieldSize: 1024 * 1024,
+      fields: 10,
+      parts: 30,
+      fieldSize: 2 * 1024 * 1024,
     },
   });
 
@@ -324,12 +415,15 @@ export async function createApi(options = {}) {
   app.get('/health', async () => ({ status: 'ok' }));
 
   app.post('/api/v1/ai/reports', {
-    schema: { body: generateReportSchema },
     config: { rateLimit: { max: 3, timeWindow: '10 minutes' } },
   }, async (request, reply) => {
     const abort = createRequestAbortSignal(request, reply);
     try {
-      const report = await ai.generate(request.body, { signal: abort.signal });
+      const { payload, attachmentsContext } = await parseGenerateReportRequest(request, abort);
+      if (abort.signal.aborted) {
+        throw new ApiError(499, 'AI_CANCELLED', 'A solicitação foi cancelada pelo cliente.');
+      }
+      const report = await ai.generate({ ...payload, attachmentsContext }, { signal: abort.signal });
       validationError(reportErrors(report), request);
       return report;
     } finally {
@@ -478,6 +572,21 @@ export async function createApi(options = {}) {
     database.deleteTemplate(template.id);
     database.recordAdminEvent('template.deleted', template.id);
     return { deleted: true, id: template.id };
+  });
+
+  app.post('/api/v1/admin/templates/:id/clone', {
+    schema: { params: TEMPLATE_PARAMS_SCHEMA },
+    preHandler: requireAdmin,
+  }, async (request, reply) => {
+    const source = database.getTemplate(request.params.id)
+      || (request.params.id === systemTemplate.id ? systemTemplate : null);
+    if (!source) throw new ApiError(404, 'TEMPLATE_NOT_FOUND', 'Modelo PDF não encontrado.');
+
+    const newId = randomUUID();
+    const cloned = database.cloneTemplate(source, newId, now());
+    database.recordAdminEvent('template.cloned', cloned.id);
+    reply.status(201);
+    return templateRecord(database.getTemplate(cloned.id));
   });
 
   app.post('/api/v1/admin/templates/:id/preview', {

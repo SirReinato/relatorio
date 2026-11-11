@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ApiError } from './errors.js';
+import { canonicalTemplates } from './canonicalTemplates.js';
 
 const scrypt = promisify(scryptCallback);
 
@@ -76,6 +77,25 @@ export async function createDatabase({ path, adminUsername, adminPassword }) {
     ).run(adminUsername, passwordHash, new Date().toISOString());
   }
 
+  const insertTemplateStmt = db.prepare(`
+    INSERT OR IGNORE INTO pdf_templates (id, name, description, html, css, status, version, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const bootstrapNow = new Date().toISOString();
+  for (const template of canonicalTemplates) {
+    insertTemplateStmt.run(
+      template.id,
+      template.name,
+      template.description,
+      template.html,
+      template.css,
+      template.status,
+      template.version,
+      bootstrapNow,
+      bootstrapNow,
+    );
+  }
+
   return {
     raw: db,
     close: () => db.close(),
@@ -141,6 +161,32 @@ export async function createDatabase({ path, adminUsername, adminPassword }) {
     setTemplateStatus: (id, status, now) => db.prepare(`
       UPDATE pdf_templates SET status = ?, version = version + 1, updated_at = ? WHERE id = ?
     `).run(status, now, id),
+    cloneTemplate: (source, newId, now) => {
+      const newName = `${source.name} (Cópia)`.slice(0, 100);
+      db.prepare(`
+        INSERT INTO pdf_templates (id, name, description, html, css, status, version, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'draft', 1, ?, ?)
+      `).run(
+        newId,
+        newName,
+        source.description || '',
+        source.html,
+        source.css,
+        now,
+        now,
+      );
+      return {
+        id: newId,
+        name: newName,
+        description: source.description || '',
+        html: source.html,
+        css: source.css,
+        status: 'draft',
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+    },
     deleteTemplate: (id) => db.prepare('DELETE FROM pdf_templates WHERE id = ?').run(id),
     recordAdminEvent: (type, resourceId) => db.prepare(
       'INSERT INTO admin_events (event_type, resource_id, created_at) VALUES (?, ?, ?)',
