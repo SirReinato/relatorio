@@ -224,11 +224,15 @@ As variáveis de ambiente do client-side devem seguir o prefixo `VITE_` para fic
 meu-projeto/
 ├── 00-anything/               # Diretório OBRIGATÓRIO para drafts, specs, relatórios EGM e testes
 │   ├── 01 - setup inicial 2026-11-07/
-│   └── 02 - gerador de relatorios 2026-11-09/
-│       ├── plan.md
+│   ├── 02 - gerador de relatorios 2026-11-09/
+│   │   ├── plan.md
+│   │   ├── design_draft.md
+│   │   ├── egm_review_report.md
+│   │   ├── egm_resolve_report.md
+│   │   └── architecture_decisions.md
+│   └── 03 - evolucao de modelos e anexos 2026-11-11/
+│       ├── concepts_brief.md
 │       ├── design_draft.md
-│       ├── egm_review_report.md
-│       ├── egm_resolve_report.md
 │       └── architecture_decisions.md
 ├── api/                      # API Fastify, schemas, auth, SQLite, IA e exportadores
 │   ├── ai.js
@@ -237,6 +241,7 @@ meu-projeto/
 │   ├── database.js
 │   ├── errors.js
 │   ├── exporters.js
+│   ├── parsers.js
 │   ├── schemas.js
 │   └── server.js
 ├── AGENTS.md                  # Ponto de entrada e guia vivo para IAs e agentes (este arquivo)
@@ -253,7 +258,8 @@ meu-projeto/
 ├── public/                    # Assets estáticos públicos servidos na raiz (ícones, favicons, etc.)
 ├── tests/                     # Testes funcionais e fluxos E2E com Playwright
 │   ├── api/
-│   │   └── api.test.js        # Contratos, provedores de IA, cancelamento e exportação
+│   │   ├── api.test.js        # Contratos, provedores de IA, cancelamento e exportação
+│   │   └── parsers.test.js    # Parsing efêmero: PDF, XLSX, CSV, imagens, amostragem e limites
 │   └── e2e/
 │       └── rotas.spec.js      # Landing, geração/regeneração IA, editor, retomada e acesso administrativo
 └── src/
@@ -705,3 +711,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-10 | GitHub Copilot | Ampliação da allowlist para rodapé de relatório: tag `footer`, posição fixa, propriedades de layout e `@page @bottom-right` com texto/counters de página restritos; API testa atualização e geração de PDF do template completo. |
 | 2026-11-10 | GitHub Copilot | Validação final do MVP: proteção contra origens ausentes/externas no login admin, preservação do rascunho ativo ao canonicalizar a rota, sincronização dos comandos SAST e dados Playwright, e alinhamento da documentação à Etapa 8. |
 | 2026-11-11 | Antigravity AI | Resolução do erro 500 no proxy do Vite (SIR-88 e SIR-89): adição do concurrently ao npm run dev para iniciar simultaneamente API (porta 3000) e SPA (porta 5173), adição do script dev:spa, implementação de tratamento de erro amigável (503 API_OFFLINE) no proxy do vite.config.js e validação operacional do Graphify (575 nós, 23 comunidades). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-90 (Fase 1 da Iniciativa 03): motor de parsing efêmero em memória (`api/parsers.js`) para extração de texto em PDFs (`pdf-parse`), conversão tabular de planilhas CSV/XLSX (`read-excel-file`), amostragem Markdown, proteção contra Zip Bombs (teto 25 MB), limites globais (15 MB / 3 arquivos) e truncamento ordenado a ~30k tokens. Cobertura com 8 novos testes em `tests/api/parsers.test.js` (totalizando 20 testes aprovados). |
