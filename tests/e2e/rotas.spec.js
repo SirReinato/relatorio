@@ -574,6 +574,127 @@ test.describe('Geração e regeneração com IA', () => {
     await expect(page.getByLabel('Conteúdo da seção 2')).toHaveValue('Conteúdo independente.');
     expect(requestCount).toBe(2);
   });
+
+  test('valida e envia anexos na criação com IA, exibindo chips, remoção e feedback de limites', async ({ page }) => {
+    let requestContentType = '';
+    let requestPostData = '';
+
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: publishedTemplates }));
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      requestContentType = route.request().headers()['content-type'] || '';
+      requestPostData = route.request().postData() || '';
+      await fulfillJson(route, 200, {
+        schemaVersion: 1,
+        id: '99aa88bb-1122-4344-8566-778899aabbcc',
+        title: 'Relatório a partir de Anexos',
+        topic: 'Desempenho Financeiro Anual',
+        brief: { objective: null, audience: null, desiredLength: 'medium', tone: null, references: [] },
+        sections: [{
+          id: '11aa22bb-33cc-44dd-85ee-66ff778899aa',
+          title: 'Resultados Consolidados',
+          body: 'Conforme indicado nas planilhas e relatórios anexados, o desempenho superou a meta.',
+          importantDetails: ['Fonte: dados.csv'],
+          images: [],
+        }],
+        selectedFormats: ['pdf'],
+        pdfTemplateId: 'system-default',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Começar com IA/ }).check();
+    await dialog.getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page.getByTestId('formulario-geracao-ia')).toBeVisible();
+    await page.getByLabel('Tema para geração').fill('Desempenho Financeiro Anual');
+
+    // 1. Tenta anexar arquivo com extensão não permitida
+    const fileInput = page.getByLabel('Selecionar arquivos de contexto');
+    await fileInput.setInputFiles({
+      name: 'script.exe',
+      mimeType: 'application/octet-stream',
+      buffer: Buffer.from('binario-proibido'),
+    });
+    await expect(page.getByTestId('erro-anexo')).toContainText('não é suportado');
+
+    // 2. Tenta anexar imagem maior que 5 MiB
+    await fileInput.setInputFiles({
+      name: 'imagem-pesada.png',
+      mimeType: 'image/png',
+      buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
+    });
+    await expect(page.getByTestId('erro-anexo')).toContainText('excede o tamanho máximo de 5 MiB');
+
+    // 3. Adiciona 2 arquivos válidos (PDF e XLSX)
+    await fileInput.setInputFiles([
+      {
+        name: 'balanco.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 mock pdf content'),
+      },
+      {
+        name: 'vendas_q1.xlsx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: Buffer.alloc(1024 * 50),
+      },
+    ]);
+    await expect(page.getByTestId('erro-anexo')).toHaveCount(0);
+    await expect(page.getByTestId('lista-anexos-ia')).toBeVisible();
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('balanco.pdf');
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('PDF');
+    await expect(page.getByTestId('chip-anexo-1')).toContainText('vendas_q1.xlsx');
+    await expect(page.getByTestId('chip-anexo-1')).toContainText('XLSX');
+
+    // 4. Remove o primeiro anexo (balanco.pdf)
+    await page.getByRole('button', { name: 'Remover anexo balanco.pdf' }).click();
+    await expect(page.getByTestId('lista-anexos-ia')).not.toContainText('balanco.pdf');
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('vendas_q1.xlsx');
+
+    // 5. Adiciona mais 2 arquivos válidos (CSV e Imagem) totalizando 3 anexos
+    await fileInput.setInputFiles([
+      {
+        name: 'dados.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from('mes,valor\njaneiro,100\nfevereiro,150'),
+      },
+      {
+        name: 'grafico.png',
+        mimeType: 'image/png',
+        buffer: Buffer.alloc(1024 * 30),
+      },
+    ]);
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('vendas_q1.xlsx');
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('dados.csv');
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('grafico.png');
+
+    // 6. Tenta adicionar mais 1 arquivo excedendo o limite de 3
+    await fileInput.setInputFiles({
+      name: 'extra.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('a,b\n1,2'),
+    });
+    await expect(page.getByTestId('erro-anexo')).toContainText('Você pode anexar no máximo 3 arquivos no total');
+
+    // 7. Dispara a geração com os 3 anexos
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+
+    // 8. Valida redirecionamento para o editor com rascunho persistido
+    await expect(page).toHaveURL(/\/relatorios\/novo\/99aa88bb-1122-4344-8566-778899aabbcc$/);
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório a partir de Anexos');
+    await expect(page.getByLabel('Conteúdo da seção 1')).toHaveValue(
+      'Conforme indicado nas planilhas e relatórios anexados, o desempenho superou a meta.',
+    );
+
+    // 9. Confere que a requisição utilizou multipart/form-data e transmitiu os anexos
+    expect(requestContentType).toContain('multipart/form-data');
+    expect(requestPostData).toContain('dados.csv');
+    expect(requestPostData).toContain('grafico.png');
+    expect(requestPostData).toContain('vendas_q1.xlsx');
+  });
 });
 
 test.describe('Acesso administrativo', () => {

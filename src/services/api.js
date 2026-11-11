@@ -129,15 +129,16 @@ export function validateSectionProposal(result, sectionId, clientRevision) {
 
 async function requestApi(path, { method = 'GET', body, signal } = {}) {
   let response;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   try {
     response = await fetch(path, {
       method,
       credentials: 'same-origin',
       headers: {
         Accept: 'application/json',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
       ...(signal ? { signal } : {}),
     });
   } catch (error) {
@@ -322,7 +323,15 @@ export function logoutAdmin() {
   return requestApi('/api/v1/admin/session', { method: 'DELETE' });
 }
 
-export function generateReport(input, { signal } = {}) {
+export function generateReport(input, { signal, attachments = [] } = {}) {
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    const formData = new FormData();
+    formData.append('payload', JSON.stringify(input));
+    attachments.forEach((file, index) => {
+      formData.append(`file_${index}`, file, file.name);
+    });
+    return requestApi('/api/v1/ai/reports', { method: 'POST', body: formData, signal });
+  }
   return requestApi('/api/v1/ai/reports', { method: 'POST', body: input, signal });
 }
 
