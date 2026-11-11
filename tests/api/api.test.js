@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { createAiService } from '../../api/ai.js';
 import { createApi } from '../../api/app.js';
 import { renderPdfHtml, sanitizeTemplate, systemTemplate } from '../../api/exporters.js';
+import { compileThemeToHtmlAndCss } from '../../src/components/AdminTemplateManager/themeCompiler.js';
 
 const origin = 'http://localhost:5173';
 const brief = {
@@ -834,5 +835,58 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     const foundCloned = adminTemplates.find((t) => t.id === cloned.id);
     assert.ok(foundCloned);
     assert.equal(foundCloned.status, 'draft');
+  });
+
+  it('valida que templates gerados pelo Theme Builder passam por sanitizeTemplate e geram PDF prévio', async () => {
+    const compiled = compileThemeToHtmlAndCss({
+      primaryColor: '#7c3aed',
+      secondaryColor: '#db2777',
+      textColor: '#18181b',
+      backgroundColor: '#fafafa',
+      fontFamily: 'Helvetica, sans-serif',
+      fontSizeBase: '14px',
+      coverLayout: 'split-bar',
+      pageMargins: 'wide',
+      headerBadgeText: 'RELATÓRIO FINANCEIRO',
+      footerFormat: 'confidential-page',
+    });
+
+    const sanitized = sanitizeTemplate(compiled);
+    assert.ok(sanitized.html.includes('header-split'));
+    assert.ok(sanitized.html.includes('RELATÓRIO FINANCEIRO'));
+    assert.ok(sanitized.css.includes('#7c3aed'));
+    assert.ok(sanitized.css.includes('25mm 20mm 25mm 20mm'));
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      headers: { origin },
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    const cookie = login.headers['set-cookie'].split(';')[0];
+
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates',
+      headers: { origin, cookie },
+      payload: {
+        name: 'Modelo Theme Builder',
+        description: 'Gerado pelo Theme Builder visual',
+        html: compiled.html,
+        css: compiled.css,
+      },
+    });
+    assert.equal(create.statusCode, 201);
+    const created = create.json();
+    assert.equal(created.name, 'Modelo Theme Builder');
+
+    const preview = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${created.id}/preview`,
+      headers: { origin, cookie },
+    });
+    assert.equal(preview.statusCode, 200);
+    assert.equal(preview.headers['content-type'], 'application/pdf');
+    assert.ok(preview.rawPayload.length > 1000);
   });
 });

@@ -170,3 +170,117 @@ export const FramePreviaModeloStl = styled.iframe`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.borderRadius.sm};
 `;
+
+export const PainelModoEditorStl = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.xs};
+  padding: ${({ theme }) => theme.spacing.xs};
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+`;
+
+export const AbaModoStl = styled.button`
+  flex: 1;
+  padding: 8px 16px;
+  color: ${({ $ativo, theme }) => ($ativo ? '#ffffff' : theme.colors.textSecondary)};
+  background: ${({ $ativo, theme }) => ($ativo ? theme.colors.primary : 'transparent')};
+  border: none;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+
+  &:hover:not(:disabled) {
+    color: #ffffff;
+    background: ${({ $ativo, theme }) => ($ativo ? theme.colors.primary : theme.colors.surfaceAlt)};
+  }
+`;
+
+export const GradeThemeBuilderStl = styled.div`
+  display: grid;
+  gap: ${({ theme }) => theme.spacing.md};
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  padding: ${({ theme }) => theme.spacing.md};
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+`;
+
+export const GrupoControleCorStl = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+export const InputCorStl = styled.input`
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  cursor: pointer;
+  background: transparent;
+
+  &::-webkit-color-swatch-wrapper {
+    padding: 2px;
+  }
+  &::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+  }
+`;
+
+export const SelecaoOpcaoStl = styled.select`
+  ${fieldStyles}
+`;
+
+export const MiniPreviaThemeStl = styled.div`
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  color: ${({ $textColor }) => $textColor || '#0f172a'};
+  background-color: ${({ $bgColor }) => $bgColor || '#ffffff'};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  font-family: ${({ $fontFamily }) => $fontFamily || 'Arial, sans-serif'};
+  font-size: ${({ $fontSize }) => $fontSize || '12px'};
+
+  .mini-header {
+    border-bottom: 2px solid ${({ $primaryColor }) => $primaryColor || '#1f6feb'};
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+
+    &.split {
+      border-left: 4px solid ${({ $primaryColor }) => $primaryColor || '#1f6feb'};
+      padding-left: 8px;
+    }
+    &.centered {
+      text-align: center;
+    }
+  }
+
+  .mini-badge {
+    font-size: 9px;
+    font-weight: 700;
+    color: ${({ $secondaryColor }) => $secondaryColor || '#238636'};
+    letter-spacing: 0.5px;
+  }
+
+  .mini-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: ${({ $primaryColor }) => $primaryColor || '#1f6feb'};
+    margin: 2px 0;
+  }
+
+  .mini-footer {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 4px;
+    font-size: 9px;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+  }
+`;

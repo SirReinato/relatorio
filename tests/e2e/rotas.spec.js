@@ -775,4 +775,84 @@ test.describe('Acesso administrativo', () => {
     await expect(page.getByTestId('modelo-admin-clone-executivo-uuid')).toBeVisible();
     await expect(page.getByTestId('modelo-admin-clone-executivo-uuid')).toContainText('Inativo / rascunho');
   });
+
+  test('permite customizar modelo via Theme Builder visual e alternar com Modo Avançado sob confirmação', async ({ page }) => {
+    let createdPayload = null;
+    await page.route('**/api/v1/admin/session', async (route) => {
+      await fulfillJson(route, 200, { authenticated: true, expiresAt: new Date().toISOString() });
+    });
+
+    await page.route('**/api/v1/admin/templates', async (route) => {
+      if (route.request().method() === 'POST') {
+        createdPayload = route.request().postDataJSON();
+        return fulfillJson(route, 201, {
+          id: 'modelo-visual-1',
+          name: createdPayload.name,
+          description: createdPayload.description,
+          html: createdPayload.html,
+          css: createdPayload.css,
+          status: 'draft',
+          version: 1,
+        });
+      }
+      return fulfillJson(route, 200, { templates: [] });
+    });
+
+    await page.goto('/admin');
+    await expect(page.getByTestId('gerenciador-modelos')).toBeVisible();
+
+    // 1. Aba visual ativa por padrão e Theme Builder visível
+    const abaVisual = page.getByTestId('aba-modo-visual');
+    const abaCodigo = page.getByTestId('aba-modo-codigo');
+    await expect(abaVisual).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('theme-builder')).toBeVisible();
+
+    // 2. Preenche dados do formulário
+    await page.getByLabel('Nome do modelo').fill('Tema Executivo Visual');
+    await page.getByLabel('Descrição do modelo').fill('Criado com Theme Builder');
+
+    // 3. Altera parâmetros visuais no Theme Builder
+    await page.getByLabel('Código hexadecimal da cor primária').fill('#7c3aed');
+    await page.getByLabel('Etiqueta do cabeçalho').fill('CONFIDENCIAL DIRETORIA');
+    await page.getByLabel('Layout do cabeçalho').selectOption('centered');
+
+    // 4. Mini prévia reflete imediatamente as mudanças
+    const miniPrevia = page.getByTestId('amostra-theme-builder');
+    await expect(miniPrevia).toContainText('CONFIDENCIAL DIRETORIA');
+
+    // 5. Alterna para Modo Avançado sem confirmação (código não foi tocado)
+    await abaCodigo.click();
+    await expect(abaCodigo).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByLabel('HTML do modelo')).toBeVisible();
+    await expect(page.getByLabel('HTML do modelo')).toHaveValue(/header-centered/);
+    await expect(page.getByLabel('CSS do modelo')).toHaveValue(/#7c3aed/);
+
+    // 6. Edita manualmente o HTML no Modo Avançado
+    await page.getByLabel('HTML do modelo').fill('<h1>{{report.title}}</h1><p>Manual</p>{{report.sections}}');
+
+    // 7. Tenta voltar para o modo visual e descarta (cancela) a confirmação
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('Voltar ao Configurador Visual substituirá as edições manuais');
+      dialog.dismiss();
+    });
+    await abaVisual.click();
+    // Continua no modo avançado
+    await expect(abaCodigo).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByLabel('HTML do modelo')).toHaveValue(/Manual/);
+
+    // 8. Tenta voltar aceitando a confirmação
+    page.once('dialog', (dialog) => {
+      dialog.accept();
+    });
+    await abaVisual.click();
+    await expect(abaVisual).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('theme-builder')).toBeVisible();
+
+    // 9. Salva o rascunho
+    await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'salvo' })).toContainText('Rascunho "Tema Executivo Visual" salvo');
+    expect(createdPayload.name).toBe('Tema Executivo Visual');
+    expect(createdPayload.html).toContain('CONFIDENCIAL DIRETORIA');
+    expect(createdPayload.css).toContain('#7c3aed');
+  });
 });

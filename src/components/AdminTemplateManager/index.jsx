@@ -8,7 +8,13 @@ import {
   unpublishAdminTemplate,
   updateAdminTemplate,
 } from '../../services/api.js';
+import ThemeBuilder from './ThemeBuilder.jsx';
 import {
+  DEFAULT_THEME_CONFIG,
+  compileThemeToHtmlAndCss,
+} from './themeCompiler.js';
+import {
+  AbaModoStl,
   AcoesModeloStl,
   AreaModeloStl,
   BotaoModeloStl,
@@ -22,17 +28,20 @@ import {
   InputModeloStl,
   ListaModelosStl,
   MensagemModeloStl,
+  PainelModoEditorStl,
   PainelPreviaModeloStl,
   StatusModeloStl,
   TextoAjudaModeloStl,
   TituloModelosStl,
 } from './styles.js';
 
+const initialCompiled = compileThemeToHtmlAndCss(DEFAULT_THEME_CONFIG);
+
 const EMPTY_TEMPLATE = {
   name: '',
   description: '',
-  html: '<h1>{{report.title}}</h1>\n<p>{{report.topic}}</p>\n{{report.sections}}',
-  css: 'body { font-family: Arial, sans-serif; color: #172033; line-height: 1.5; }\nh1 { font-size: 24px; }',
+  html: initialCompiled.html,
+  css: initialCompiled.css,
 };
 
 function templateValues(template) {
@@ -51,6 +60,9 @@ export default function AdminTemplateManager({
 }) {
   const [form, setForm] = useState(EMPTY_TEMPLATE);
   const [editingId, setEditingId] = useState('');
+  const [editorMode, setEditorMode] = useState('visual');
+  const [visualConfig, setVisualConfig] = useState(DEFAULT_THEME_CONFIG);
+  const [codeModifiedManually, setCodeModifiedManually] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [busyTemplateId, setBusyTemplateId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -71,7 +83,16 @@ export default function AdminTemplateManager({
   }
 
   function resetForm() {
-    setForm(EMPTY_TEMPLATE);
+    const compiled = compileThemeToHtmlAndCss(DEFAULT_THEME_CONFIG);
+    setForm({
+      name: '',
+      description: '',
+      html: compiled.html,
+      css: compiled.css,
+    });
+    setVisualConfig(DEFAULT_THEME_CONFIG);
+    setEditorMode('visual');
+    setCodeModifiedManually(false);
     setEditingId('');
     setErrorMessage('');
     setStatusMessage('');
@@ -80,8 +101,38 @@ export default function AdminTemplateManager({
   function editTemplate(template) {
     setEditingId(template.id);
     setForm(templateValues(template));
+    setEditorMode('code');
+    setCodeModifiedManually(true);
     setErrorMessage('');
     setStatusMessage(`Editando ${template.name}. Salve como rascunho antes de publicar.`);
+  }
+
+  function handleVisualConfigChange(newConfig) {
+    setVisualConfig(newConfig);
+    const compiled = compileThemeToHtmlAndCss(newConfig);
+    setForm((current) => ({
+      ...current,
+      html: compiled.html,
+      css: compiled.css,
+    }));
+  }
+
+  function handleModeSwitch(targetMode) {
+    if (targetMode === editorMode) return;
+    if (targetMode === 'visual' && codeModifiedManually) {
+      const confirmSwitch = window.confirm(
+        'Voltar ao Configurador Visual substituirá as edições manuais em HTML e CSS pela compilação do tema. Deseja continuar?'
+      );
+      if (!confirmSwitch) return;
+      const compiled = compileThemeToHtmlAndCss(visualConfig);
+      setForm((current) => ({
+        ...current,
+        html: compiled.html,
+        css: compiled.css,
+      }));
+      setCodeModifiedManually(false);
+    }
+    setEditorMode(targetMode);
   }
 
   async function loadPreview(templateId) {
@@ -205,34 +256,73 @@ export default function AdminTemplateManager({
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
           />
         </CampoModeloStl>
-        <CampoModeloStl>
-          HTML do modelo
-          <AreaModeloStl
-            aria-label="HTML do modelo"
-            maxLength={50 * 1024}
-            required
-            value={form.html}
-            onChange={(event) => setForm((current) => ({ ...current, html: event.target.value }))}
+
+        <PainelModoEditorStl role="tablist" aria-label="Modo de edição do modelo">
+          <AbaModoStl
+            type="button"
+            role="tab"
+            aria-selected={editorMode === 'visual'}
+            $active={editorMode === 'visual'}
+            onClick={() => handleModeSwitch('visual')}
+            data-testid="aba-modo-visual"
+          >
+            Configurador Visual
+          </AbaModoStl>
+          <AbaModoStl
+            type="button"
+            role="tab"
+            aria-selected={editorMode === 'code'}
+            $active={editorMode === 'code'}
+            onClick={() => handleModeSwitch('code')}
+            data-testid="aba-modo-codigo"
+          >
+            Modo Avançado (HTML/CSS)
+          </AbaModoStl>
+        </PainelModoEditorStl>
+
+        {editorMode === 'visual' ? (
+          <ThemeBuilder
+            config={visualConfig}
+            onChangeConfig={handleVisualConfigChange}
           />
-        </CampoModeloStl>
-        <TextoAjudaModeloStl>
-          Placeholders permitidos: <code>{'{{report.title}}'}</code>, <code>{'{{report.topic}}'}</code> e{' '}
-          <code>{'{{report.sections}}'}</code>. Use apenas as tags e atributos aceitos pelo servidor;
-          scripts e conteúdo executável são rejeitados.
-        </TextoAjudaModeloStl>
-        <CampoModeloStl>
-          CSS do modelo
-          <AreaModeloStl
-            aria-label="CSS do modelo"
-            maxLength={50 * 1024}
-            value={form.css}
-            onChange={(event) => setForm((current) => ({ ...current, css: event.target.value }))}
-          />
-        </CampoModeloStl>
-        <TextoAjudaModeloStl>
-          O servidor permite propriedades e seletores CSS restritos e bloqueia regras especiais,
-          URLs, JavaScript e carregamento de recursos externos.
-        </TextoAjudaModeloStl>
+        ) : (
+          <>
+            <CampoModeloStl>
+              HTML do modelo
+              <AreaModeloStl
+                aria-label="HTML do modelo"
+                maxLength={50 * 1024}
+                required
+                value={form.html}
+                onChange={(event) => {
+                  setCodeModifiedManually(true);
+                  setForm((current) => ({ ...current, html: event.target.value }));
+                }}
+              />
+            </CampoModeloStl>
+            <TextoAjudaModeloStl>
+              Placeholders permitidos: <code>{'{{report.title}}'}</code>, <code>{'{{report.topic}}'}</code> e{' '}
+              <code>{'{{report.sections}}'}</code>. Use apenas as tags e atributos aceitos pelo servidor;
+              scripts e conteúdo executável são rejeitados.
+            </TextoAjudaModeloStl>
+            <CampoModeloStl>
+              CSS do modelo
+              <AreaModeloStl
+                aria-label="CSS do modelo"
+                maxLength={50 * 1024}
+                value={form.css}
+                onChange={(event) => {
+                  setCodeModifiedManually(true);
+                  setForm((current) => ({ ...current, css: event.target.value }));
+                }}
+              />
+            </CampoModeloStl>
+            <TextoAjudaModeloStl>
+              O servidor permite propriedades e seletores CSS restritos e bloqueia regras especiais,
+              URLs, JavaScript e carregamento de recursos externos.
+            </TextoAjudaModeloStl>
+          </>
+        )}
         <AcoesModeloStl>
           <BotaoModeloStl type="submit" $primary disabled={isWorking}>
             {isWorking ? 'Salvando…' : 'Salvar rascunho'}
