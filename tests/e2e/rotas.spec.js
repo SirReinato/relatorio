@@ -276,6 +276,60 @@ test.describe('Landing page e início do relatório', () => {
     await expect(page.getByText('Nenhum rascunho salvo ainda.')).toBeVisible();
   });
 
+  test('altera o modelo de PDF dinamicamente, sincroniza no IndexedDB e trata modelo despublicado', async ({ page }) => {
+    let templatesList = [
+      { id: 'system-default', name: 'Padrão do Sistema', status: 'published' },
+      { id: 'modelo-executivo', name: 'Executivo Corporativo', status: 'published' },
+      { id: 'modelo-tecnico', name: 'Laudo Técnico', status: 'published' },
+    ];
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: templatesList }));
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await page.getByLabel('Título do relatório').fill('Relatório com Modelo Dinâmico');
+    await page.getByLabel('Tema do relatório').fill('Arquitetura de Software');
+
+    // 1. Verifica modelo padrão inicial
+    const selectModelo = page.getByLabel('Selecionar modelo de PDF');
+    await expect(selectModelo).toBeVisible();
+    await expect(selectModelo).toHaveValue('system-default');
+
+    // 2. Troca o modelo para "Executivo Corporativo"
+    await selectModelo.selectOption('modelo-executivo');
+    await expect(page.getByTestId('modelo-pdf')).toContainText('Executivo Corporativo');
+    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador');
+
+    // 3. Abre a prévia e confere que reflete o modelo
+    await page.getByRole('button', { name: 'Pré-visualizar' }).click();
+    await expect(page.getByTestId('previa-relatorio')).toBeVisible();
+    await expect(page.getByTestId('previa-modelo-pdf')).toContainText('Executivo Corporativo');
+    await page.getByRole('button', { name: 'Fechar prévia' }).click();
+
+    // 4. Recarrega a página (F5) e verifica se persiste no IndexedDB
+    await page.reload();
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório com Modelo Dinâmico');
+    await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('modelo-executivo');
+    await expect(page.getByTestId('modelo-pdf')).toContainText('Executivo Corporativo');
+
+    // 5. Simula que o modelo foi despublicado e usuário acessa o rascunho
+    templatesList = [
+      { id: 'system-default', name: 'Padrão do Sistema', status: 'published' },
+    ];
+    await page.reload();
+    await expect(page.getByTestId('alerta-modelo-despublicado')).toBeVisible();
+    await expect(page.getByTestId('alerta-modelo-despublicado')).toContainText('modelo-executivo');
+
+    // 6. Clica para reverter para o modelo padrão
+    await page.getByRole('button', { name: 'Reverter para modelo padrão' }).click();
+    await expect(page.getByTestId('alerta-modelo-despublicado')).not.toBeVisible();
+    await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('system-default');
+    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador');
+  });
+
   test('mantém o conteúdo em memória e sinaliza quando IndexedDB não está disponível', async ({ page }) => {
     await page.addInitScript(() => Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined }));
     await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: [] }));
