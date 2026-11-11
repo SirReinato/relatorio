@@ -939,4 +939,67 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.ok(html.includes('Destaque Operacional &amp; Pontos de Atenção'));
     assert.ok(html.includes('Priorizar chamado #5740'));
   });
+
+  it('valida e aceita seletores CSS combinados com tags e classes permitidas (ex: table.data-table)', async () => {
+    const userCss = `
+body {
+  font-family: Arial, sans-serif;
+  color: #1D2128;
+  background-color: #ffffff;
+}
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 12px;
+}
+
+table.data-table th {
+  background-color: #215E61;
+  color: #ffffff;
+  padding: 8px;
+}
+
+table.data-table td {
+  padding: 8px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+p.lead {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+div#hero.banner {
+  padding: 20px;
+}
+`;
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      headers: { origin },
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    const cookie = login.headers['set-cookie'].split(';')[0];
+
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates',
+      headers: { origin, cookie },
+      payload: {
+        name: 'Modelo com Seletores Combinados',
+        description: 'Usa table.data-table e p.lead',
+        html: '<div class="report-wrapper"><h1>{{report.title}}</h1>{{report.sections}}</div>',
+        css: userCss,
+      },
+    });
+
+    assert.equal(create.statusCode, 201);
+    const created = create.json();
+    assert.equal(created.name, 'Modelo com Seletores Combinados');
+    assert.ok(created.css.includes('table.data-table'));
+    assert.ok(created.css.includes('p.lead'));
+  });
 });

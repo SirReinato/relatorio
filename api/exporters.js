@@ -88,9 +88,18 @@ function isAllowedCssSelector(selector) {
     const selectorPart = pseudoElementMatch ? pseudoElementMatch[1] : part;
     const nthChildMatch = selectorPart.match(/^(.+):nth-child\((?:even|odd|\d+)\)$/i);
     const base = nthChildMatch ? nthChildMatch[1] : selectorPart;
-    return base === '*'
-      || ALLOWED_CSS_TAG_SELECTORS.has(base.toLowerCase())
-      || /^[.#][a-zA-Z0-9_-]+$/.test(base);
+
+    if (base === '*') return true;
+    if (ALLOWED_CSS_TAG_SELECTORS.has(base.toLowerCase())) return true;
+
+    const combinedMatch = base.match(/^([a-zA-Z0-9]+)?((?:[.#][a-zA-Z0-9_-]+)+)$/);
+    if (combinedMatch) {
+      const tag = combinedMatch[1];
+      if (!tag) return true;
+      return ALLOWED_CSS_TAG_SELECTORS.has(tag.toLowerCase());
+    }
+
+    return false;
   });
 }
 
