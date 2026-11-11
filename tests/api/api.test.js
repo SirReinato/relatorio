@@ -767,6 +767,32 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.equal(response.json().error.code, 'INVALID_ATTACHMENT');
   });
 
+  it('rejeita envio multipart com arquivos excedendo o limite cumulativo de 15 MiB com FILE_TOO_LARGE', async () => {
+    const boundary = 'relatorio-ai-large-boundary';
+    const payloadJson = { topic: 'Arquivo Gigante', brief };
+
+    const file8Mb = Buffer.alloc(8 * 1024 * 1024, 0x61);
+
+    const parts = [
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payloadJson)}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file_1"; filename="grande_1.csv"\r\nContent-Type: text/csv\r\n\r\n`),
+      file8Mb,
+      Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="file_2"; filename="grande_2.csv"\r\nContent-Type: text/csv\r\n\r\n`),
+      file8Mb,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ];
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: Buffer.concat(parts),
+    });
+
+    assert.equal(response.statusCode, 413);
+    assert.equal(response.json().error.code, 'FILE_TOO_LARGE');
+  });
+
   it('semeia os 5 modelos canonicos publicados no banco de dados', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/v1/templates' });
     assert.equal(response.statusCode, 200);

@@ -977,4 +977,152 @@ test.describe('Acesso administrativo', () => {
     expect(createdPayload.html).toContain('CONFIDENCIAL DIRETORIA');
     expect(createdPayload.css).toContain('#7c3aed');
   });
+
+  test('executa o fluxo E2E unificado da Iniciativa 03: criação IA com anexos, modelo executivo e exportação multiformato', async ({ page }) => {
+    const templatesCatalog = [
+      { id: 'system-executivo', name: 'Executivo Corporativo', status: 'published' },
+      { id: 'system-painel-executivo', name: 'Painel Executivo & Callouts', status: 'published' },
+      { id: 'system-minimalista', name: 'Minimalista Preto e Branco', status: 'published' },
+    ];
+
+    let aiReportRequestedWithAttachment = false;
+    let exportPdfTemplateUsed = null;
+    let exportDocxCalled = false;
+    let exportMarkdownCalled = false;
+
+    await page.route('**/api/v1/templates', (route) => fulfillJson(route, 200, { templates: templatesCatalog }));
+
+    await page.route('**/api/v1/ai/reports', async (route) => {
+      const postData = route.request().postData() || '';
+      aiReportRequestedWithAttachment = postData.includes('contexto-slas.md');
+      await fulfillJson(route, 200, {
+        schemaVersion: 1,
+        id: '12345678-1234-4234-8234-123456789abc',
+        title: 'Relatório Executivo de Incidentes e SLAs',
+        topic: 'Gestão de Incidentes Q4',
+        brief: {
+          objective: 'Apresentar volumetria e conformidade de SLA à diretoria',
+          audience: 'C-Level',
+          desiredLength: 'medium',
+          tone: 'formal',
+          references: ['contexto-slas.md'],
+        },
+        sections: [
+          {
+            id: '22345678-1234-4234-8234-123456789abc',
+            title: 'Desempenho Geral de Atendimento',
+            body: '| Mês | Chamados | SLA Atingido |\n| --- | --- | --- |\n| Out | 120 | 98.5% |\n| Nov | 145 | 99.1% |',
+            importantDetails: ['Alerta Crítico: Redução de 45% nos incidentes de alta severidade.'],
+            images: [],
+          },
+        ],
+        selectedFormats: ['pdf', 'docx', 'markdown'],
+        pdfTemplateId: 'system-painel-executivo',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    await page.route('**/api/v1/exports/pdf', async (route) => {
+      const match = (route.request().postData() || '').match(/name="report"\r\n\r\n([\s\S]*?)\r\n--/);
+      if (match) {
+        const payload = JSON.parse(match[1]);
+        exportPdfTemplateUsed = payload.pdfTemplateId;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        headers: { 'Content-Disposition': 'attachment; filename="relatorio.pdf"' },
+        body: Buffer.from('%PDF-1.4 mock pdf content'),
+      });
+    });
+
+    await page.route('**/api/v1/exports/docx', async (route) => {
+      exportDocxCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        headers: { 'Content-Disposition': 'attachment; filename="relatorio.docx"' },
+        body: Buffer.from('mock docx content'),
+      });
+    });
+
+    await page.route('**/api/v1/exports/markdown', async (route) => {
+      exportMarkdownCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/markdown',
+        headers: { 'Content-Disposition': 'attachment; filename="relatorio.md"' },
+        body: '# Relatório Executivo',
+      });
+    });
+
+    // 1. Visita a Home e abre o modal de Iniciar Relatório
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Iniciar novo relatório' }).click();
+    const modal = page.getByRole('dialog', { name: 'Iniciar novo relatório' });
+    await expect(modal).toBeVisible();
+
+    // 2. Configura: Começar com IA, formatos PDF + DOCX + Markdown, e modelo Painel Executivo
+    await modal.getByRole('radio', { name: /Começar com IA/ }).check();
+    await modal.getByRole('checkbox', { name: 'DOCX' }).check();
+    await modal.getByRole('checkbox', { name: 'Markdown' }).check();
+    await modal.getByLabel('Modelo de PDF').selectOption('system-painel-executivo');
+    await modal.getByRole('button', { name: 'Continuar' }).click();
+
+    // 3. Chega ao formulário de IA
+    await expect(page.getByTestId('formulario-geracao-ia')).toBeVisible();
+    await page.getByLabel('Tema para geração').fill('Gestão de Incidentes Q4');
+
+    // 4. Anexa arquivo Markdown de contexto
+    const uploadInput = page.getByLabel('Selecionar arquivos de contexto');
+    await uploadInput.setInputFiles({
+      name: 'contexto-slas.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# Dados de contexto de SLA para suporte à decisão'),
+    });
+    await expect(page.getByTestId('chip-anexo-0')).toContainText('contexto-slas.md');
+
+    // 5. Dispara a geração com IA
+    await page.getByRole('button', { name: 'Gerar relatório' }).click();
+
+    // 6. Editor manual abre com o relatório gerado
+    await expect(page.getByTestId('editor-relatorio')).toBeVisible();
+    expect(aiReportRequestedWithAttachment).toBe(true);
+    await expect(page.getByLabel('Título do relatório')).toHaveValue('Relatório Executivo de Incidentes e SLAs');
+    await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('system-painel-executivo');
+
+    // 7. Abre a Pré-visualização e confere os elementos
+    await page.getByRole('button', { name: 'Pré-visualizar' }).click();
+    const previa = page.getByTestId('previa-relatorio');
+    await expect(previa).toBeVisible();
+    await expect(previa).toContainText('Painel Executivo & Callouts');
+    await expect(previa).toContainText('Desempenho Geral de Atendimento');
+    await expect(previa).toContainText('Alerta Crítico: Redução de 45% nos incidentes de alta severidade.');
+    await page.getByRole('button', { name: 'Fechar prévia' }).click();
+
+    // 8. Gera os arquivos selecionados
+    await page.getByRole('button', { name: 'Gerar arquivos selecionados' }).click();
+    await expect(page.getByTestId('estado-exportacao-pdf')).toHaveText('PDF gerado com sucesso.');
+    await expect(page.getByTestId('estado-exportacao-docx')).toHaveText('DOCX gerado com sucesso.');
+    await expect(page.getByTestId('estado-exportacao-markdown')).toHaveText('Markdown gerado com sucesso.');
+
+    // 9. Testa o download de cada arquivo concluído
+    const downloadPromisePdf = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Baixar PDF' }).click();
+    const downloadPdf = await downloadPromisePdf;
+    expect(downloadPdf.suggestedFilename()).toBe('relatorio.pdf');
+    expect(exportPdfTemplateUsed).toBe('system-painel-executivo');
+
+    const downloadPromiseDocx = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Baixar DOCX' }).click();
+    const downloadDocx = await downloadPromiseDocx;
+    expect(downloadDocx.suggestedFilename()).toBe('relatorio.docx');
+    expect(exportDocxCalled).toBe(true);
+
+    const downloadPromiseMd = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Baixar Markdown' }).click();
+    const downloadMd = await downloadPromiseMd;
+    expect(downloadMd.suggestedFilename()).toBe('relatorio.md');
+    expect(exportMarkdownCalled).toBe(true);
+  });
 });
