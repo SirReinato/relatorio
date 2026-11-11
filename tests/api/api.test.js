@@ -767,13 +767,19 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.equal(response.json().error.code, 'INVALID_ATTACHMENT');
   });
 
-  it('semeia os 4 modelos canonicos publicados no banco de dados', async () => {
+  it('semeia os 5 modelos canonicos publicados no banco de dados', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/v1/templates' });
     assert.equal(response.statusCode, 200);
     const { templates } = response.json();
-    assert.ok(templates.length >= 4);
+    assert.ok(templates.length >= 5);
 
-    const canonicalIds = ['system-executivo', 'system-tecnico', 'system-comercial', 'system-minimalista'];
+    const canonicalIds = [
+      'system-executivo',
+      'system-tecnico',
+      'system-comercial',
+      'system-minimalista',
+      'system-painel-executivo',
+    ];
     for (const id of canonicalIds) {
       const found = templates.find((t) => t.id === id);
       assert.ok(found, `Modelo ${id} não encontrado na listagem pública`);
@@ -888,5 +894,23 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.equal(preview.statusCode, 200);
     assert.equal(preview.headers['content-type'], 'application/pdf');
     assert.ok(preview.rawPayload.length > 1000);
+  });
+
+  it('renderiza tabelas Markdown, blocos de citação e callouts de destaque no HTML do PDF', () => {
+    const report = makeReport();
+    report.sections[0].body = `Contexto geral antes da tabela.\n\n| Chamado | Colaborador | Recurso |\n|---|---|---|\n| #5740 | Leiciane Sousa | Sankhya DP |\n| #5739 | Thais Garcez | Pastas de Rede |\n\n> Diretriz operacional: Atenção ao preenchimento de chamados.`;
+    report.sections[0].importantDetails = ['Verificar permissão no AD', 'Priorizar chamado #5740'];
+
+    const html = renderPdfHtml(report, systemTemplate);
+    assert.ok(html.includes('<table>'));
+    assert.ok(html.includes('<th>Chamado</th>'));
+    assert.ok(html.includes('<td>#5740</td>'));
+    assert.ok(html.includes('<td>Sankhya DP</td>'));
+    assert.ok(html.includes('<blockquote>'));
+    assert.ok(html.includes('Diretriz operacional: Atenção ao preenchimento de chamados.'));
+    assert.ok(html.includes('class="callout-card"'));
+    assert.ok(html.includes('class="callout-tag"'));
+    assert.ok(html.includes('Destaque Operacional &amp; Pontos de Atenção'));
+    assert.ok(html.includes('Priorizar chamado #5740'));
   });
 });

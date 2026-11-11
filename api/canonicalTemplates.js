@@ -68,7 +68,7 @@ body {
 h2 {
   color: #1e3a8a;
   font-size: 18px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1.5px solid #1e3a8a;
   padding-bottom: 4px;
   margin-top: 20px;
   margin-bottom: 10px;
@@ -81,6 +81,63 @@ h3 {
 }
 p {
   margin-bottom: 10px;
+}
+.callout-card {
+  background-color: #fffbeb;
+  border-left: 4px solid #d97706;
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+.callout-tag {
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 4px;
+}
+.callout-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.callout-card li {
+  color: #92400e;
+  margin-bottom: 3px;
+}
+blockquote {
+  background-color: #eff6ff;
+  border-left: 4px solid #2563eb;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 10px 0;
+  color: #1e40af;
+  font-size: 12px;
+  line-height: 1.5;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 11px;
+}
+th {
+  background-color: #f8fafc;
+  color: #1e3a8a;
+  font-weight: 700;
+  padding: 8px 6px;
+  border-bottom: 2px solid #1e3a8a;
+  border-top: 1px solid #e2e8f0;
+  text-align: left;
+}
+td {
+  padding: 7px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+tr:nth-child(even) {
+  background-color: #fafbfc;
 }`,
     status: 'published',
     version: 1,
@@ -339,6 +396,215 @@ h3 {
 }
 p {
   margin-bottom: 12px;
+}`,
+    status: 'published',
+    version: 1,
+  },
+  {
+    id: 'system-painel-executivo',
+    name: 'Painel Executivo & Callouts',
+    description: 'Estrutura corporativa de alta densidade inspirada em relatórios oficiais de gestão: painel de indicadores no cabeçalho, callout boxes de atenção âmbar/azul, tabelas tabulares nítidas e badges para chamados e sistemas.',
+    html: `<header class="report-header">
+  <div class="header-main">
+    <span class="report-badge">RELATÓRIO EXECUTIVO OFICIAL</span>
+    <h1 class="report-title">{{report.title}}</h1>
+    <p class="report-topic">{{report.topic}}</p>
+  </div>
+  <div class="meta-strip">
+    <div class="meta-card">
+      <span class="meta-title">Emissão &amp; Versão</span>
+      <span class="meta-desc">Consolidado Oficial</span>
+    </div>
+    <div class="meta-card">
+      <span class="meta-title">Classificação</span>
+      <span class="meta-desc">Diretoria &amp; Operações</span>
+    </div>
+    <div class="meta-card">
+      <span class="meta-title">Escopo da Análise</span>
+      <span class="meta-desc">Triagem &amp; Regularizações</span>
+    </div>
+  </div>
+</header>
+<main class="report-body">{{report.sections}}</main>
+<footer class="report-footer">
+  <div class="footer-left">
+    <span class="footer-company">{{report.title}} • Confidencial</span>
+  </div>
+</footer>`,
+    css: `@page {
+  size: a4 portrait;
+  margin: 16mm 14mm 18mm 14mm;
+  @bottom-left {
+    content: "Documento Corporativo • Uso Interno";
+    font-family: Arial, sans-serif;
+    font-size: 8pt;
+    color: #64748b;
+  }
+  @bottom-right {
+    content: "Página " counter(page) " de " counter(pages);
+    font-family: Arial, sans-serif;
+    font-size: 8pt;
+    color: #64748b;
+  }
+}
+body {
+  font-family: Arial, sans-serif;
+  color: #0f172a;
+  line-height: 1.55;
+  background-color: #ffffff;
+}
+.report-header {
+  border-bottom: 2px solid #1e3a8a;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+.report-badge {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #2563eb;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+}
+.report-title {
+  font-size: 20pt;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+.report-topic {
+  font-size: 10pt;
+  color: #475569;
+  margin-bottom: 10px;
+}
+.meta-strip {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.meta-card {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  flex: 1;
+}
+.meta-title {
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  display: block;
+  font-weight: 700;
+}
+.meta-desc {
+  font-size: 9pt;
+  color: #0f172a;
+  font-weight: 600;
+}
+.report-body {
+  font-size: 9.5pt;
+}
+.report-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 6px;
+  font-size: 8pt;
+  color: #64748b;
+}
+h2 {
+  color: #1e3a8a;
+  font-size: 13pt;
+  font-weight: 700;
+  border-bottom: 1.5px solid #1e3a8a;
+  padding-bottom: 4px;
+  margin-top: 18px;
+  margin-bottom: 8px;
+  page-break-after: avoid;
+}
+h3 {
+  color: #2563eb;
+  font-size: 10.5pt;
+  font-weight: 700;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+p {
+  margin-bottom: 8px;
+  color: #1e293b;
+}
+.callout-card {
+  background-color: #fefce8;
+  border-left: 4px solid #ca8a04;
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+.callout-tag {
+  color: #854d0e;
+  font-size: 8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: block;
+  margin-bottom: 4px;
+}
+.callout-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.callout-card li {
+  color: #713f12;
+  font-size: 9pt;
+  margin-bottom: 3px;
+}
+blockquote {
+  background-color: #eff6ff;
+  border-left: 4px solid #2563eb;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 10px 0;
+  color: #1e40af;
+  font-size: 9pt;
+  line-height: 1.5;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 8.5pt;
+  line-height: 1.4;
+  page-break-inside: auto;
+}
+th {
+  background-color: #f8fafc;
+  color: #1e3a8a;
+  font-weight: 700;
+  padding: 8px 6px;
+  border-bottom: 2px solid #1e3a8a;
+  border-top: 1px solid #e2e8f0;
+  text-align: left;
+}
+td {
+  padding: 7px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+  color: #1e293b;
+}
+tr:nth-child(even) {
+  background-color: #fafbfc;
+}
+ul, ol {
+  padding-left: 18px;
+  margin-bottom: 8px;
+}
+li {
+  margin-bottom: 3px;
 }`,
     status: 'published',
     version: 1,

@@ -140,6 +140,38 @@ h3 {
 p {
   margin-bottom: 10px;
 }
+.callout-card {
+  background-color: #fffbeb;
+  border-left: 4px solid ${secondaryColor};
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+.callout-tag {
+  color: ${secondaryColor};
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 4px;
+}
+.callout-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.callout-card li {
+  margin-bottom: 3px;
+}
+blockquote {
+  background-color: #f8fafc;
+  border-left: 4px solid ${primaryColor};
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 10px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
 ul {
   padding-left: 20px;
   margin-bottom: 12px;
