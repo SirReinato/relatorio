@@ -659,4 +659,110 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.match(response.headers['content-disposition'], /\.docx"/);
     assert.equal(response.body.slice(0, 2), 'PK');
   });
+
+  it('aceita multipart/form-data com anexos analíticos e injeta contexto no relatório gerado', async () => {
+    const boundary = 'relatorio-ai-multipart-boundary';
+    const csvContent = 'Mes,Vendas,Margem\nJaneiro,15000,32%\nFevereiro,18500,35%';
+    const payloadJson = {
+      topic: 'Desempenho Comercial Q1',
+      brief,
+    };
+
+    const multipart = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="payload"',
+      'Content-Type: application/json',
+      '',
+      JSON.stringify(payloadJson),
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="attachment:1"; filename="vendas_q1.csv"',
+      'Content-Type: text/csv',
+      '',
+      csvContent,
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: multipart,
+    });
+
+    assert.equal(response.statusCode, 200, response.body);
+    const report = response.json();
+    assert.equal(report.topic, 'Desempenho Comercial Q1');
+    assert.equal(report.sections.length, 2);
+    assert.equal(report.sections[1].title, 'Análise documental e evidências');
+    assert.match(report.sections[1].body, /vendas_q1\.csv/);
+    assert.match(report.sections[1].body, /Janeiro/);
+    assert.match(report.sections[1].body, /15000/);
+    assert.equal(report.sections[1].importantDetails.length, 1);
+    assert.match(report.sections[1].importantDetails[0], /vendas_q1\.csv/);
+  });
+
+  it('rejeita envio multipart com mais de 3 arquivos anexos com TOO_MANY_FILES', async () => {
+    const boundary = 'relatorio-ai-many-boundary';
+    const payloadJson = { topic: 'Relatório Excessivo', brief };
+
+    const parts = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="payload"',
+      'Content-Type: application/json',
+      '',
+      JSON.stringify(payloadJson),
+    ];
+
+    for (let i = 1; i <= 4; i += 1) {
+      parts.push(
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file_${i}"; filename="doc_${i}.csv"`,
+        'Content-Type: text/csv',
+        '',
+        `col1,col2\nval${i},data${i}`,
+      );
+    }
+    parts.push(`--${boundary}--`, '');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: parts.join('\r\n'),
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, 'TOO_MANY_FILES');
+  });
+
+  it('rejeita anexo com formato não suportado com INVALID_ATTACHMENT', async () => {
+    const boundary = 'relatorio-ai-unsupported-boundary';
+    const payloadJson = { topic: 'Arquivo Invalido', brief };
+
+    const multipart = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="payload"',
+      'Content-Type: application/json',
+      '',
+      JSON.stringify(payloadJson),
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="script"; filename="malicious.exe"',
+      'Content-Type: application/x-msdownload',
+      '',
+      'MZbinarioexecutavel',
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/reports',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: multipart,
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, 'INVALID_ATTACHMENT');
+  });
 });

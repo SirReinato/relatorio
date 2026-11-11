@@ -33,19 +33,32 @@ const REPORT_OUTPUT_SCHEMA = {
 function fakeReport(input) {
   const topic = input.topic.trim();
   const title = topic.slice(0, 200);
+  const sections = [{
+    id: randomUUID(),
+    title: 'Visão geral',
+    body: `Este é um rascunho inicial sobre ${topic}. Revise e complemente o conteúdo antes de exportar.`,
+    importantDetails: [],
+    images: [],
+  }];
+
+  if (input.attachmentsContext && input.attachmentsContext.attachmentsMeta?.length > 0) {
+    const fileNames = input.attachmentsContext.attachmentsMeta.map((a) => a.fileName).join(', ');
+    sections.push({
+      id: randomUUID(),
+      title: 'Análise documental e evidências',
+      body: `Foram analisados os seguintes documentos anexos: ${fileNames}.\n\nSíntese dos dados extraídos:\n${input.attachmentsContext.text.slice(0, 2000)}`,
+      importantDetails: input.attachmentsContext.attachmentsMeta.map((a) => `Documento processado: ${a.fileName} (${a.type.toUpperCase()})`),
+      images: [],
+    });
+  }
+
   return {
     schemaVersion: 1,
     id: randomUUID(),
     title,
     topic,
     brief: input.brief,
-    sections: [{
-      id: randomUUID(),
-      title: 'Visão geral',
-      body: `Este é um rascunho inicial sobre ${topic}. Revise e complemente o conteúdo antes de exportar.`,
-      importantDetails: [],
-      images: [],
-    }],
+    sections,
     selectedFormats: ['pdf'],
     pdfTemplateId: 'system-default',
     updatedAt: new Date().toISOString(),
@@ -258,6 +271,20 @@ export function createAiService(config) {
   async function generate(input, { signal } = {}) {
     if (config.aiProvider === 'fake') return fakeReport(input);
 
+    let developerInstruction = 'Crie um rascunho de relatório em português do Brasil. Seja claro e não invente fontes verificadas. Retorne somente o objeto definido pelo schema.';
+    if (input.attachmentsContext?.text) {
+      developerInstruction += ' Documentos ou tabelas contextuais foram anexados. Baseie a análise, números e conclusões estritamente nesses dados com alta fidelidade analítica.';
+    }
+
+    const userPayload = {
+      topic: input.topic,
+      brief: input.brief,
+    };
+    let userContent = JSON.stringify(userPayload);
+    if (input.attachmentsContext?.text) {
+      userContent += `\n\n=== DOCUMENTOS E TABELAS ANEXAS PARA CONTEXTO ===\n${input.attachmentsContext.text}`;
+    }
+
     const report = await providerJson(config, {
       name: 'report_draft',
       schema: REPORT_OUTPUT_SCHEMA,
@@ -266,9 +293,9 @@ export function createAiService(config) {
       input: [
         {
           role: 'developer',
-          content: 'Crie um rascunho de relatório em português do Brasil. Seja claro e não invente fontes verificadas. Retorne somente o objeto definido pelo schema.',
+          content: developerInstruction,
         },
-        { role: 'user', content: JSON.stringify(input) },
+        { role: 'user', content: userContent },
       ],
     });
     const reportDraft = {
