@@ -185,7 +185,8 @@ Ao inicializar um novo projeto via `npm create vite@latest`, o template do Vite 
 | Comando | Descrição | 
 | ----- | ----- | 
 | `npm install` | Instala todas as dependências do projeto | 
-| `npm run dev` | Inicia o servidor local de desenvolvimento (geralmente em `http://localhost:5173`) | 
+| `npm run dev` | Inicia simultaneamente o backend Fastify (porta 3000) e o frontend Vite (porta 5173) via concurrently | 
+| `npm run dev:spa` | Inicia somente o servidor frontend Vite (geralmente em `http://localhost:5173`) | 
 | `npm run build` | Gera a build otimizada para produção no diretório `dist/` | 
 | `npm run preview` | Executa um servidor local servindo a pasta de produção `dist/` | 
 | `npm run api:dev` | Inicia a API Node/Fastify usando o `.env` local, se existir |
@@ -703,3 +704,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-10 | GitHub Copilot | Expansão da allowlist segura de templates PDF para aceitar tags `header`/`main`, seletores comuns e regras `@page` limitadas, permitindo layouts de relatório A4 sem liberar scripts ou acesso à rede. |
 | 2026-11-10 | GitHub Copilot | Ampliação da allowlist para rodapé de relatório: tag `footer`, posição fixa, propriedades de layout e `@page @bottom-right` com texto/counters de página restritos; API testa atualização e geração de PDF do template completo. |
 | 2026-11-10 | GitHub Copilot | Validação final do MVP: proteção contra origens ausentes/externas no login admin, preservação do rascunho ativo ao canonicalizar a rota, sincronização dos comandos SAST e dados Playwright, e alinhamento da documentação à Etapa 8. |
+| 2026-11-11 | Antigravity AI | Resolução do erro 500 no proxy do Vite (SIR-88 e SIR-89): adição do concurrently ao npm run dev para iniciar simultaneamente API (porta 3000) e SPA (porta 5173), adição do script dev:spa, implementação de tratamento de erro amigável (503 API_OFFLINE) no proxy do vite.config.js e validação operacional do Graphify (575 nós, 23 comunidades). |

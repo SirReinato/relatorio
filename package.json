@@ -7,7 +7,8 @@
     "graphify": "./bin/graphify.cjs"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"api,spa\" -c \"yellow.bold,cyan.bold\" \"npm:api:dev\" \"npm:dev:spa\"",
+    "dev:spa": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "api:dev": "node --env-file-if-exists=.env api/server.js",
@@ -41,6 +42,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^10.0.7",
     "eslint": "^9.14.0",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",

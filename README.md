@@ -30,8 +30,8 @@ Aplicação web planejada para criar relatórios manualmente ou com auxílio de 
 ### Executar localmente
 
 1. Copie `.env.example` para `.env` e defina uma senha forte em `ADMIN_INITIAL_PASSWORD`.
-2. Inicie a API em um terminal: `npm run api:dev`.
-3. Inicie a SPA em outro terminal: `npm run dev`. O Vite encaminha `/api` para a API local.
+2. Inicie a aplicação completa (API na porta 3000 + SPA na porta 5173): `npm run dev`.
+3. Alternativamente, execute os serviços isolados em terminais dedicados: `npm run api:dev` (apenas backend) e `npm run dev:spa` (apenas frontend). O Vite encaminha `/api` para a API local.
 
 O Node deve ser v24 ou superior. A senha inicial é usada somente para criar a conta admin no primeiro arranque; remova-a do `.env` após o provisionamento. Para usar IA, defina `AI_PROVIDER=openai` ou `AI_PROVIDER=gemini` e configure a chave/modelo correspondentes; chaves nunca devem usar o prefixo `VITE_`. Para gerar PDFs, instale o Chromium compatível com Playwright usando `npx playwright install chromium`, se ainda não estiver instalado.
 
@@ -58,8 +58,9 @@ As decisões, contratos, limites iniciais, comparações e pendências estão em
 
 ```bash
 npm install
-npm run api:dev
 npm run dev
+npm run dev:spa
+npm run api:dev
 npm run build
 npm run lint
 npm run test:api
