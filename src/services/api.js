@@ -307,6 +307,10 @@ export function deleteAdminTemplate(id) {
   return requestApi(`/api/v1/admin/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+export function cloneAdminTemplate(id) {
+  return requestApi(`/api/v1/admin/templates/${encodeURIComponent(id)}/clone`, { method: 'POST' });
+}
+
 export function previewAdminTemplate(id) {
   return requestApiBlob(
     `/api/v1/admin/templates/${encodeURIComponent(id)}/preview`,

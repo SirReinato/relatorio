@@ -765,4 +765,74 @@ tr:nth-child(even) td { background-color: #f7fbf3; }
     assert.equal(response.statusCode, 400);
     assert.equal(response.json().error.code, 'INVALID_ATTACHMENT');
   });
+
+  it('semeia os 4 modelos canonicos publicados no banco de dados', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/templates' });
+    assert.equal(response.statusCode, 200);
+    const { templates } = response.json();
+    assert.ok(templates.length >= 4);
+
+    const canonicalIds = ['system-executivo', 'system-tecnico', 'system-comercial', 'system-minimalista'];
+    for (const id of canonicalIds) {
+      const found = templates.find((t) => t.id === id);
+      assert.ok(found, `Modelo ${id} não encontrado na listagem pública`);
+      assert.equal(found.status, 'published');
+    }
+  });
+
+  it('permite ao administrador duplicar/clonar qualquer modelo existente como rascunho', async () => {
+    const missingOrigin = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates/system-executivo/clone',
+    });
+    assert.equal(missingOrigin.statusCode, 403);
+    assert.equal(missingOrigin.json().error.code, 'ORIGIN_REQUIRED');
+
+    const unauthorized = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates/system-executivo/clone',
+      headers: { origin },
+    });
+    assert.equal(unauthorized.statusCode, 401);
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/session',
+      headers: { origin },
+      payload: { username: 'admin', password: 'local-test-password-123' },
+    });
+    assert.equal(login.statusCode, 200);
+    const cookie = login.headers['set-cookie'].split(';')[0];
+
+    const notFound = await app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/templates/${randomUUID()}/clone`,
+      headers: { origin, cookie },
+    });
+    assert.equal(notFound.statusCode, 404);
+    assert.equal(notFound.json().error.code, 'TEMPLATE_NOT_FOUND');
+
+    const cloneResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/templates/system-executivo/clone',
+      headers: { origin, cookie },
+    });
+    assert.equal(cloneResponse.statusCode, 201);
+    const cloned = cloneResponse.json();
+    assert.equal(cloned.name, 'Executivo Moderno (Cópia)');
+    assert.equal(cloned.status, 'draft');
+    assert.equal(cloned.version, 1);
+    assert.notEqual(cloned.id, 'system-executivo');
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/templates',
+      headers: { origin, cookie },
+    });
+    assert.equal(list.statusCode, 200);
+    const adminTemplates = list.json().templates;
+    const foundCloned = adminTemplates.find((t) => t.id === cloned.id);
+    assert.ok(foundCloned);
+    assert.equal(foundCloned.status, 'draft');
+  });
 });

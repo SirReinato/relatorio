@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  cloneAdminTemplate,
   createAdminTemplate,
   deleteAdminTemplate,
   previewAdminTemplate,
@@ -152,6 +153,23 @@ export default function AdminTemplateManager({
     }
   }
 
+  async function cloneTemplate(template) {
+    setErrorMessage('');
+    setStatusMessage('');
+    setBusyTemplateId(template.id);
+    try {
+      const cloned = await cloneAdminTemplate(template.id);
+      onTemplatesChanged();
+      setEditingId(cloned.id);
+      setForm(templateValues(cloned));
+      setStatusMessage(`Modelo "${template.name}" duplicado com sucesso como "${cloned.name}". Salve como rascunho antes de publicar.`);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setBusyTemplateId('');
+    }
+  }
+
   return (
     <GerenciadorModelosStl data-testid="gerenciador-modelos">
       <CabecalhoModelosStl>
@@ -280,6 +298,11 @@ export default function AdminTemplateManager({
                     onClick={() => changeTemplateStatus(template, false)}
                   >Despublicar</BotaoModeloStl>
                 )}
+                <BotaoModeloStl
+                  type="button"
+                  disabled={isWorking || Boolean(busyTemplateId)}
+                  onClick={() => cloneTemplate(template)}
+                >Duplicar</BotaoModeloStl>
                 <BotaoModeloStl
                   type="button"
                   disabled={isWorking || Boolean(busyTemplateId)}

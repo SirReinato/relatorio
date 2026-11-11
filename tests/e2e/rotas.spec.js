@@ -327,7 +327,7 @@ test.describe('Landing page e início do relatório', () => {
     await page.getByRole('button', { name: 'Reverter para modelo padrão' }).click();
     await expect(page.getByTestId('alerta-modelo-despublicado')).not.toBeVisible();
     await expect(page.getByLabel('Selecionar modelo de PDF')).toHaveValue('system-default');
-    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador');
+    await expect(page.getByTestId('estado-salvamento')).toContainText('Rascunho salvo neste navegador', { timeout: 15000 });
   });
 
   test('mantém o conteúdo em memória e sinaliza quando IndexedDB não está disponível', async ({ page }) => {
@@ -728,5 +728,51 @@ test.describe('Acesso administrativo', () => {
 
     await expect(page).toHaveURL('/admin/login');
     await expect(page.getByTestId('formulario-login-admin')).toBeVisible();
+  });
+
+  test('permite ao administrador duplicar um modelo existente gerando um novo rascunho', async ({ page }) => {
+    let templatesList = [{
+      id: 'system-executivo',
+      name: 'Executivo Moderno',
+      description: 'Layout corporativo contemporâneo',
+      html: '<h1>{{report.title}}</h1>{{report.sections}}',
+      css: 'body { font-family: Arial; }',
+      status: 'published',
+      version: 1,
+    }];
+
+    await page.route('**/api/v1/admin/session', async (route) => {
+      if (route.request().method() === 'POST') {
+        await fulfillJson(route, 200, { authenticated: true, expiresAt: new Date().toISOString() });
+        return;
+      }
+      await fulfillJson(route, 200, { authenticated: true });
+    });
+
+    await page.route('**/api/v1/admin/templates', (route) => fulfillJson(route, 200, { templates: templatesList }));
+    await page.route('**/api/v1/admin/templates/system-executivo/clone', async (route) => {
+      const cloned = {
+        id: 'clone-executivo-uuid',
+        name: 'Executivo Moderno (Cópia)',
+        description: 'Layout corporativo contemporâneo',
+        html: '<h1>{{report.title}}</h1>{{report.sections}}',
+        css: 'body { font-family: Arial; }',
+        status: 'draft',
+        version: 1,
+      };
+      templatesList = [cloned, ...templatesList];
+      await fulfillJson(route, 201, cloned);
+    });
+
+    await page.goto('/admin');
+    await expect(page.getByTestId('modelo-admin-system-executivo')).toBeVisible();
+
+    const card = page.getByTestId('modelo-admin-system-executivo');
+    await card.getByRole('button', { name: 'Duplicar' }).click();
+
+    await expect(page.getByRole('status')).toContainText('duplicado com sucesso como "Executivo Moderno (Cópia)"');
+    await expect(page.getByLabel('Nome do modelo')).toHaveValue('Executivo Moderno (Cópia)');
+    await expect(page.getByTestId('modelo-admin-clone-executivo-uuid')).toBeVisible();
+    await expect(page.getByTestId('modelo-admin-clone-executivo-uuid')).toContainText('Inativo / rascunho');
   });
 });

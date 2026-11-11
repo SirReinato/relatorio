@@ -36,12 +36,17 @@ import {
 } from './schemas.js';
 import { consolidateContext, MAX_ATTACHMENTS_COUNT } from './parsers.js';
 
-const UUID_SCHEMA = { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' };
+const TEMPLATE_ID_SCHEMA = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 100,
+  pattern: '^(system-[a-z0-9-]+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$',
+};
 const TEMPLATE_PARAMS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['id'],
-  properties: { id: UUID_SCHEMA },
+  properties: { id: TEMPLATE_ID_SCHEMA },
 };
 
 function now() {
@@ -567,6 +572,21 @@ export async function createApi(options = {}) {
     database.deleteTemplate(template.id);
     database.recordAdminEvent('template.deleted', template.id);
     return { deleted: true, id: template.id };
+  });
+
+  app.post('/api/v1/admin/templates/:id/clone', {
+    schema: { params: TEMPLATE_PARAMS_SCHEMA },
+    preHandler: requireAdmin,
+  }, async (request, reply) => {
+    const source = database.getTemplate(request.params.id)
+      || (request.params.id === systemTemplate.id ? systemTemplate : null);
+    if (!source) throw new ApiError(404, 'TEMPLATE_NOT_FOUND', 'Modelo PDF não encontrado.');
+
+    const newId = randomUUID();
+    const cloned = database.cloneTemplate(source, newId, now());
+    database.recordAdminEvent('template.cloned', cloned.id);
+    reply.status(201);
+    return templateRecord(database.getTemplate(cloned.id));
   });
 
   app.post('/api/v1/admin/templates/:id/preview', {

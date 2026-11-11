@@ -238,6 +238,7 @@ meu-projeto/
 │   ├── ai.js
 │   ├── app.js
 │   ├── auth.js
+│   ├── canonicalTemplates.js
 │   ├── database.js
 │   ├── errors.js
 │   ├── exporters.js
@@ -714,3 +715,4 @@ Antes de considerar qualquer tarefa ou resposta como concluída, o agente DEVE v
 | 2026-11-11 | Antigravity AI | Implementação de SIR-90 (Fase 1 da Iniciativa 03): motor de parsing efêmero em memória (`api/parsers.js`) para extração de texto em PDFs (`pdf-parse`), conversão tabular de planilhas CSV/XLSX (`read-excel-file`), amostragem Markdown, proteção contra Zip Bombs (teto 25 MB), limites globais (15 MB / 3 arquivos) e truncamento ordenado a ~30k tokens. Cobertura com 8 novos testes em `tests/api/parsers.test.js` (totalizando 20 testes aprovados). |
 | 2026-11-11 | Antigravity AI | Implementação de SIR-91 (Fase 2 da Iniciativa 03): expansão do endpoint `POST /api/v1/ai/reports` para suporte híbrido multipart/form-data e JSON via `@fastify/multipart` (teto aumentado para 10 MiB/arquivo, 10 campos e 30 partes), integração com `createRequestAbortSignal`, injeção de contexto analítico (`consolidateContext`) nos prompts dos provedores de IA (OpenAI, Gemini e Fake), e adaptação determinística do provedor Fake refletindo metadados e evidências dos anexos. Cobertura com 3 novos testes em `tests/api/api.test.js` (totalizando 23 testes da API aprovados). |
 | 2026-11-11 | Antigravity AI | Implementação de SIR-92 (Fase 3 da Iniciativa 03): integração do seletor dinâmico de modelos PDF publicados (`fetchPublicTemplates`) diretamente no `ManualReportEditor` (bloco de configurações, barra de exportação e prévia), sincronização reativa com persistência no IndexedDB (`saveReportDraft`), tratamento gracioso com alerta e botão de reversão rápida para modelos despublicados (`AlertaModeloStl` e `BlocoModeloStl`). Cobertura com 1 novo teste E2E Playwright em `tests/e2e/rotas.spec.js` (totalizando 17 testes E2E aprovados). |
+| 2026-11-11 | Antigravity AI | Implementação de SIR-93 (Fase 4 da Iniciativa 03): catálogo de 4 modelos canônicos iniciais (`system-executivo`, `system-tecnico`, `system-comercial`, `system-minimalista`) em `api/canonicalTemplates.js`, semeados no SQLite com status `published`; implementação da rota administrativa de duplicação `POST /api/v1/admin/templates/:id/clone` e inclusão do botão "Duplicar" na interface do `AdminTemplateManager`. Cobertura com 2 novos testes de API em `tests/api/api.test.js` (total 25 aprovados) e 1 novo teste E2E em `tests/e2e/rotas.spec.js` (total 18 aprovados). |
