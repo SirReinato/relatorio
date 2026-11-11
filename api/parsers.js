@@ -8,12 +8,13 @@ export const MAX_CUMULATIVE_BYTES = 15 * 1024 * 1024; // 15 MiB
 export const MAX_PDF_BYTES = 10 * 1024 * 1024; // 10 MiB
 export const MAX_SPREADSHEET_BYTES = 5 * 1024 * 1024; // 5 MiB
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MiB
+export const MAX_MARKDOWN_BYTES = 10 * 1024 * 1024; // 10 MiB
 export const MAX_SPREADSHEET_ROWS_PER_SHEET = 100;
 export const MAX_SPREADSHEET_ROWS_TOTAL = 200;
 export const MAX_ESTIMATED_TOKENS = 30000;
 export const MAX_CONTEXT_CHARACTERS = MAX_ESTIMATED_TOKENS * 4; // ~120.000 chars
 
-export const SUPPORTED_EXTENSIONS = new Set(['pdf', 'xlsx', 'xls', 'csv', 'png', 'jpg', 'jpeg', 'webp']);
+export const SUPPORTED_EXTENSIONS = new Set(['pdf', 'xlsx', 'xls', 'csv', 'md', 'markdown', 'png', 'jpg', 'jpeg', 'webp']);
 
 export function estimateTokens(text) {
   if (!text || typeof text !== 'string') return 0;
@@ -269,12 +270,37 @@ export async function inspectAttachmentImage(buffer, fileName = 'imagem.png') {
   }
 }
 
+export function extractMarkdownText(buffer, fileName = 'documento.md') {
+  if (!buffer || buffer.length === 0) {
+    throw new ApiError(400, 'INVALID_ATTACHMENT', `O arquivo Markdown "${fileName}" está vazio.`);
+  }
+  if (buffer.length > MAX_MARKDOWN_BYTES) {
+    throw new ApiError(413, 'FILE_TOO_LARGE', `O arquivo Markdown "${fileName}" excede o limite de 10 MiB.`);
+  }
+
+  const rawText = buffer.toString('utf-8');
+  const clean = sanitizeText(rawText);
+  if (!clean) {
+    throw new ApiError(400, 'INVALID_ATTACHMENT', `O arquivo Markdown "${fileName}" não contém texto legível.`);
+  }
+
+  return {
+    type: 'markdown',
+    fileName,
+    sizeBytes: buffer.length,
+    text: clean,
+  };
+}
+
 export async function parseSingleAttachment(attachment) {
   const { buffer, fileName = 'arquivo', mimeType = '' } = attachment;
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
   if (ext === 'pdf' || mimeType.includes('pdf')) {
     return extractPdfText(buffer, fileName);
+  }
+  if (ext === 'md' || ext === 'markdown' || mimeType.includes('markdown') || mimeType.includes('text/markdown')) {
+    return extractMarkdownText(buffer, fileName);
   }
   if (ext === 'csv' || mimeType.includes('csv')) {
     return extractSpreadsheetMarkdown(buffer, fileName);
@@ -286,7 +312,7 @@ export async function parseSingleAttachment(attachment) {
     return inspectAttachmentImage(buffer, fileName);
   }
 
-  throw new ApiError(400, 'INVALID_ATTACHMENT', `O formato do arquivo "${fileName}" não é suportado. Envie arquivos PDF, planilhas (XLSX, CSV) ou imagens (PNG, JPEG, WebP).`);
+  throw new ApiError(400, 'INVALID_ATTACHMENT', `O formato do arquivo "${fileName}" não é suportado. Envie arquivos PDF, Markdown (.md), planilhas (XLSX, CSV) ou imagens (PNG, JPEG, WebP).`);
 }
 
 export async function consolidateContext(attachments = []) {

@@ -35,7 +35,7 @@ const MAX_COMBINED_ATTACHMENTS_BYTES = 15 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
-const ALLOWED_EXTENSIONS = new Set(['pdf', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'webp']);
+const ALLOWED_EXTENSIONS = new Set(['pdf', 'xlsx', 'csv', 'md', 'markdown', 'png', 'jpg', 'jpeg', 'webp']);
 
 function getFileExtension(filename) {
   const parts = filename.split('.');
@@ -44,6 +44,7 @@ function getFileExtension(filename) {
 
 function getFileTypeBadge(ext) {
   if (ext === 'pdf') return 'PDF';
+  if (ext === 'md' || ext === 'markdown') return 'MD';
   if (ext === 'xlsx' || ext === 'csv') return ext.toUpperCase();
   return 'IMG';
 }
@@ -57,7 +58,7 @@ function formatFileSize(bytes) {
 function validateFile(file) {
   const ext = getFileExtension(file.name);
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return `O arquivo "${file.name}" não é suportado. Formatos aceitos: PDF, XLSX, CSV, PNG, JPG e WebP.`;
+    return `O arquivo "${file.name}" não é suportado. Formatos aceitos: PDF, XLSX, CSV, Markdown (.md), PNG, JPG e WebP.`;
   }
   const isImage = ['png', 'jpg', 'jpeg', 'webp'].includes(ext);
   const maxBytes = isImage ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES;
@@ -318,7 +319,7 @@ export default function ReportGenerationForm({ configuration }) {
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".pdf,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
+            accept=".pdf,.xlsx,.csv,.md,.markdown,.png,.jpg,.jpeg,.webp"
             aria-label="Selecionar arquivos de contexto"
             onChange={(e) => {
               if (e.target.files) {
@@ -331,7 +332,7 @@ export default function ReportGenerationForm({ configuration }) {
             {isDragging ? 'Solte os arquivos para anexar' : 'Arraste arquivos aqui ou clique para selecionar'}
           </TextoGeracaoStl>
           <TextoAjudaAnexoStl>
-            Até 3 arquivos (PDF, XLSX, CSV, PNG, JPG, WebP) com no máximo 15 MiB no total.
+            Até 3 arquivos (PDF, XLSX, CSV, Markdown .md, PNG, JPG, WebP) com no máximo 15 MiB no total.
           </TextoAjudaAnexoStl>
         </ZonaDropUploadStl>
       </CampoGeracaoStl>

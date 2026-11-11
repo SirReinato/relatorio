@@ -5,6 +5,7 @@ import {
   consolidateContext,
   escapeMarkdownTableCell,
   estimateTokens,
+  extractMarkdownText,
   extractPdfText,
   extractSpreadsheetMarkdown,
   formatMarkdownTable,
@@ -157,6 +158,33 @@ test('api/parsers: consolidateContext aplica limites globais e compõe texto ana
       { fileName: 'a.csv', buffer: Buffer.alloc(8 * 1024 * 1024) },
       { fileName: 'b.csv', buffer: Buffer.alloc(8 * 1024 * 1024) },
     ]),
+    (err) => err instanceof ApiError && err.statusCode === 413 && err.code === 'FILE_TOO_LARGE',
+  );
+});
+
+test('api/parsers: extractMarkdownText processa .md e parseSingleAttachment suporta arquivos markdown', async () => {
+  const mdBuffer = Buffer.from('# Título do Documento\n\nEste é um **resumo** com detalhes analíticos.');
+  const result = extractMarkdownText(mdBuffer, 'brief.md');
+  assert.equal(result.type, 'markdown');
+  assert.equal(result.fileName, 'brief.md');
+  assert.match(result.text, /Título do Documento/);
+
+  const parsed = await parseSingleAttachment({
+    fileName: 'notas.md',
+    buffer: mdBuffer,
+  });
+  assert.equal(parsed.type, 'markdown');
+  assert.equal(parsed.fileName, 'notas.md');
+
+  // Rejeita buffer vazio
+  assert.throws(
+    () => extractMarkdownText(Buffer.alloc(0), 'vazio.md'),
+    (err) => err instanceof ApiError && err.statusCode === 400 && err.code === 'INVALID_ATTACHMENT',
+  );
+
+  // Rejeita buffer maior que 10 MiB
+  assert.throws(
+    () => extractMarkdownText(Buffer.alloc(11 * 1024 * 1024), 'grande.md'),
     (err) => err instanceof ApiError && err.statusCode === 413 && err.code === 'FILE_TOO_LARGE',
   );
 });

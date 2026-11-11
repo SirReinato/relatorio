@@ -653,12 +653,12 @@ test.describe('Geração e regeneração com IA', () => {
     await expect(page.getByTestId('lista-anexos-ia')).not.toContainText('balanco.pdf');
     await expect(page.getByTestId('chip-anexo-0')).toContainText('vendas_q1.xlsx');
 
-    // 5. Adiciona mais 2 arquivos válidos (CSV e Imagem) totalizando 3 anexos
+    // 5. Adiciona mais 2 arquivos válidos (Markdown e Imagem) totalizando 3 anexos
     await fileInput.setInputFiles([
       {
-        name: 'dados.csv',
-        mimeType: 'text/csv',
-        buffer: Buffer.from('mes,valor\njaneiro,100\nfevereiro,150'),
+        name: 'notas_reuniao.md',
+        mimeType: 'text/markdown',
+        buffer: Buffer.from('# Decisões\n- Meta batida em 120%'),
       },
       {
         name: 'grafico.png',
@@ -667,8 +667,9 @@ test.describe('Geração e regeneração com IA', () => {
       },
     ]);
     await expect(page.getByTestId('lista-anexos-ia')).toContainText('vendas_q1.xlsx');
-    await expect(page.getByTestId('lista-anexos-ia')).toContainText('dados.csv');
+    await expect(page.getByTestId('lista-anexos-ia')).toContainText('notas_reuniao.md');
     await expect(page.getByTestId('lista-anexos-ia')).toContainText('grafico.png');
+    await expect(page.getByTestId('chip-anexo-1')).toContainText('MD');
 
     // 6. Tenta adicionar mais 1 arquivo excedendo o limite de 3
     await fileInput.setInputFiles({
@@ -691,7 +692,7 @@ test.describe('Geração e regeneração com IA', () => {
 
     // 9. Confere que a requisição utilizou multipart/form-data e transmitiu os anexos
     expect(requestContentType).toContain('multipart/form-data');
-    expect(requestPostData).toContain('dados.csv');
+    expect(requestPostData).toContain('notas_reuniao.md');
     expect(requestPostData).toContain('grafico.png');
     expect(requestPostData).toContain('vendas_q1.xlsx');
   });
